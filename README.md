@@ -7,14 +7,11 @@
 
 ## Overview
 
-This package implements a Cartesian admittance controller for the Franka FR3 robot arm in simulation. The controller maps external forces and position errors to compliant end-effector motion using a virtual second-order spring-damper system. Joint velocities are computed via a damped least-squares Jacobian pseudoinverse and sent to a modified low-level velocity controller.
+THE CODE I DEVELOPED IS THE IN:  franka_ros2/src/MY_ADMITTANCE_CONTROL 
 
-Three simulation scenarios are included:
-- **Free-space motion** — evaluates damping ratio effects (underdamped / critically damped / overdamped) and virtual inertia effects on transient response
-- **Contact with a stiff environment** — virtual table contact at z = 0.05 m, evaluates stiffness and inertia effects on contact force
-- **External disturbance** — simulates a human push via a manually injected force, evaluates compliance and recovery behavior
+I also modified the file joint_velocity_example_controller.cpp to read ros2 topics to command the joint velocities
 
----
+This workspace implements a Cartesian admittance controller for the Franka FR3 robot arm in simulation. The controller maps external forces and position errors to compliant end-effector motion using a virtual second-order spring-damper system. Joint velocities are computed via a damped least-squares Jacobian pseudoinverse and sent to a modified low-level velocity controller.
 
 ## Dependencies
 
