@@ -1,6 +1,6 @@
 # ME780 Assignment 2 — Admittance Control (Track A)
 **Author:** Steven Yang  
-**Course:** ME780 – Collaborative Robotics, Winter 2026  
+**Course:** ME780 – Collaborative Robotics
 **Platform:** ROS 2 Humble | Ubuntu 22.04 | Franka FR3
 
 ---
