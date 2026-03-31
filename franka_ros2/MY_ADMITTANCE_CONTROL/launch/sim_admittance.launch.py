@@ -190,7 +190,9 @@ def generate_launch_description():
     )
 
     # ========== GAZEBO ==========
-    os.environ['GZ_SIM_RESOURCE_PATH'] = os.path.dirname(get_package_share_directory('franka_description'))
+    os.environ['GZ_SIM_RESOURCE_PATH'] = (
+        os.path.dirname(get_package_share_directory('franka_description'))
+    )
 
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
     gazebo_custom_world = IncludeLaunchDescription(
@@ -243,6 +245,7 @@ def generate_launch_description():
         output='screen'
     )
 
+    # ========== OTHER NODES ==========
     admittance_control_node = Node(
         package='admittance_controller',
         executable='admittance_control_node',
@@ -260,6 +263,7 @@ def generate_launch_description():
         ]
     )
 
+
     joint_state_publisher_node = Node(
         package='joint_state_publisher',
         executable='joint_state_publisher',
@@ -268,6 +272,7 @@ def generate_launch_description():
         parameters=[{'source_list': ['/joint_states'], 'rate': 30}],
     )
 
+    # ========== LAUNCH DESCRIPTION ==========
     return LaunchDescription([
         load_gripper_launch_argument,
         franka_hand_launch_argument,
