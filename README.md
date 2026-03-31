@@ -243,4 +243,3 @@ Figures are saved as PDF to `figures/`.
 - **Virtual contact:** A virtual plane at z = 0.05 m with stiffness 5000 N/m simulates a rigid table surface. Contact force is proportional to penetration depth (normal direction only).
 - **Force sensor:** Gravity compensation and velocity-dependent damping correction are applied to the raw wrench before it enters the control loop. The `readForce` flag toggles between sensor-driven and manually-injected force modes.
 - **Singularity handling:** Damped least-squares pseudoinverse with λ = 0.05 prevents large joint velocity commands near kinematic singularities.
-- **Torque-based loop:** `admittanceLoop2()` is an alternative torque-based impedance implementation included for reference but not active in the primary pipeline.
