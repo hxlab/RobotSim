@@ -46,7 +46,7 @@ franka_ros2/                          ← Open this folder in VS Code
 │   ├── franka_gazebo/                ← Franka Gazebo simulation
 │   ├── franka_description/           ← Robot URDF/xacro
 │   ├── ... (other franka_ros2 packages)
-│   └── MY_ADMITTANCE_CONTROL/        ← Main custom package (package name: admittance_controller)
+│   └── MY_ADMITTANCE_CONTROL/        ← MY CODE, CUSTOM PACKAGE (package name: admittance_controller)
 │       ├── src/
 │       │   └── admittance_control_node.cpp
 │       ├── scripts/
