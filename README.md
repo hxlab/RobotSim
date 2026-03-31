@@ -180,13 +180,9 @@ F_ext (sensor or manual)
 |---|---|---|
 | `mass` | `10.0` | Virtual inertia M_d (kg) |
 | `damping` | `140.0` | Virtual damping D_d (Ns/m) — overridden by `d_calculated` |
-| `stiffness` | `1000.0` | Virtual stiffness K_d (N/m) |
-| `base_frame` | `fr3_link0` | Robot base frame name |
-| `position_scale_x/y/z` | `4.0` | Haptic device workspace scaling |
-| `height_offset` | `0.3` | Z offset for haptic-to-robot mapping |
-| `max_force_output` | `5.0` | Haptic force output clamp (N) |
+| `stiffness` | `500.0` | Virtual stiffness K_d (N/m) |
 
-**Note:** The damping used in the control loop is `d_calculated = 2 * zeta * sqrt(M * K)`. `zeta` is hardcoded to `1.0` for critical damping by default — modify in source to test other damping ratios.
+**Note:** These parameters are modified by changing the values in the source code
 
 ### Subscribed Topics
 
