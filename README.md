@@ -1,20 +1,19 @@
 # ME780 Assignment 2 — Admittance Control (Track A)
 **Author:** Steven Yang  
-**Course:** ME780 – Collaborative Robotics, Winter 2026  
+**Course:** ME780 – Collaborative Robotics
 **Platform:** ROS 2 Humble | Ubuntu 22.04 | Franka FR3
 
 ---
 
 ## Overview
 
-This package implements a Cartesian admittance controller for the Franka FR3 robot arm in simulation. The controller maps external forces and position errors to compliant end-effector motion using a virtual second-order spring-damper system. Joint velocities are computed via a damped least-squares Jacobian pseudoinverse and sent to a modified low-level velocity controller.
+THE CODE I DEVELOPED IS THE IN:  franka_ros2/src/MY_ADMITTANCE_CONTROL 
 
-Three simulation scenarios are included:
-- **Free-space motion** — evaluates damping ratio effects (underdamped / critically damped / overdamped) and virtual inertia effects on transient response
-- **Contact with a stiff environment** — virtual table contact at z = 0.05 m, evaluates stiffness and inertia effects on contact force
-- **External disturbance** — simulates a human push via a manually injected force, evaluates compliance and recovery behavior
+THE CONTROLLER CODE IS IN: franka_ros2/src/MY_ADMITTANCE_CONTROL/src/admittance_control_node.cpp
 
----
+I also modified the file joint_velocity_example_controller.cpp to read ros2 topics to command the joint velocities
+
+This workspace implements a Cartesian admittance controller for the Franka FR3 robot arm in simulation. The controller maps external forces and position errors to compliant end-effector motion using a virtual second-order spring-damper system. Joint velocities are computed via a damped least-squares Jacobian pseudoinverse and sent to a modified low-level velocity controller.
 
 ## Dependencies
 
@@ -46,7 +45,7 @@ franka_ros2/                          ← Open this folder in VS Code
 │   ├── franka_gazebo/                ← Franka Gazebo simulation
 │   ├── franka_description/           ← Robot URDF/xacro
 │   ├── ... (other franka_ros2 packages)
-│   └── MY_ADMITTANCE_CONTROL/        ← Main custom package (package name: admittance_controller)
+│   └── MY_ADMITTANCE_CONTROL/        ← MY CODE, CUSTOM PACKAGE (package name: admittance_controller)
 │       ├── src/
 │       │   └── admittance_control_node.cpp
 │       ├── scripts/
@@ -180,13 +179,9 @@ F_ext (sensor or manual)
 |---|---|---|
 | `mass` | `10.0` | Virtual inertia M_d (kg) |
 | `damping` | `140.0` | Virtual damping D_d (Ns/m) — overridden by `d_calculated` |
-| `stiffness` | `1000.0` | Virtual stiffness K_d (N/m) |
-| `base_frame` | `fr3_link0` | Robot base frame name |
-| `position_scale_x/y/z` | `4.0` | Haptic device workspace scaling |
-| `height_offset` | `0.3` | Z offset for haptic-to-robot mapping |
-| `max_force_output` | `5.0` | Haptic force output clamp (N) |
+| `stiffness` | `500.0` | Virtual stiffness K_d (N/m) |
 
-**Note:** The damping used in the control loop is `d_calculated = 2 * zeta * sqrt(M * K)`. `zeta` is hardcoded to `1.0` for critical damping by default — modify in source to test other damping ratios.
+**Note:** These parameters are modified by changing the values in the source code
 
 ### Subscribed Topics
 
@@ -247,4 +242,3 @@ Figures are saved as PDF to `figures/`.
 - **Virtual contact:** A virtual plane at z = 0.05 m with stiffness 5000 N/m simulates a rigid table surface. Contact force is proportional to penetration depth (normal direction only).
 - **Force sensor:** Gravity compensation and velocity-dependent damping correction are applied to the raw wrench before it enters the control loop. The `readForce` flag toggles between sensor-driven and manually-injected force modes.
 - **Singularity handling:** Damped least-squares pseudoinverse with λ = 0.05 prevents large joint velocity commands near kinematic singularities.
-- **Torque-based loop:** `admittanceLoop2()` is an alternative torque-based impedance implementation included for reference but not active in the primary pipeline.
