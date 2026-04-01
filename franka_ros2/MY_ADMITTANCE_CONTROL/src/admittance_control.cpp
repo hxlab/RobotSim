@@ -63,6 +63,12 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_state/robot_state.h>
 
+#include <rclcpp_action/rclcpp_action.hpp>
+#include <franka_msgs/action/grasp.hpp>
+#include <franka_msgs/action/move.hpp>
+
+#include <fmt/format.h>
+
 #include <deque>
 
 // Global TF2 buffer and listener (used for gravity compensation frame transforms)
@@ -86,6 +92,7 @@ public:
         this->declare_parameter<double>("stiffness", 1000.0);        // virtual stiffness K_d (N/m)
         this->declare_parameter<double>("max_force_output", 5.0);    // haptic force clamp (N)
         this->declare_parameter<double>("valid_distance_threshold", 0.55);
+        this->declare_parameter<bool>("use_gazebo", false);
 
         base_frame_               = this->get_parameter("base_frame").as_string();
         position_scale_x_         = this->get_parameter("position_scale_x").as_double();
@@ -140,6 +147,13 @@ public:
         joint_state_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
             "/joint_states", 10,
             std::bind(&SimpleIKNode::jointStateCallback, this, std::placeholders::_1));
+
+        button_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+            "/haptic/buttons", 10,
+            std::bind(&SimpleIKNode::buttonCallback, this, std::placeholders::_1));
+
+        gripper_pub_ = this->create_publisher<std_msgs::msg::Float64>(
+            "/target_gripper_width", 10);
 
         // ─── 6. Publishers ────────────────────────────────────────────────────
         haptic_force_pub_        = this->create_publisher<geometry_msgs::msg::Vector3>("/haptic/force_command", 10);
@@ -200,8 +214,25 @@ private:
         haptic_goal_.x() = (-msg->position.z * position_scale_x_) + height_offset_;
         haptic_goal_.y() = -msg->position.x * position_scale_y_;
         haptic_goal_.z() = (msg->position.y * position_scale_z_) + height_offset_;
-    }
 
+        // Convert haptic orientation from message to Eigen
+        // Eigen::Quaterniond constructor is (w, x, y, z)
+        Eigen::Quaterniond haptic_orientation(
+            latest_haptic_pose_.orientation.w,
+            latest_haptic_pose_.orientation.x,
+            latest_haptic_pose_.orientation.y,
+            latest_haptic_pose_.orientation.z
+        );
+
+        // Rotation quaternions using AngleAxis
+        Eigen::Quaterniond rot_1(Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitZ()));
+        Eigen::Quaterniond rot_0(Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitZ()));
+
+        //haptic_orientation_goal_ = (rot_1 * haptic_orientation * rot_0).normalized();
+
+        Eigen::Quaterniond base_down(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
+        haptic_orientation_goal_ = (rot_1 * haptic_orientation * rot_0 * base_down).normalized();
+    }
     /**
      * @brief Receives a desired Cartesian goal pose published to /set_goal_pose.
      * Used in simulation experiments to command the robot to target positions.
@@ -395,7 +426,7 @@ private:
 
         // ── 3. Position error: e = x_actual - x_goal ─────────────────────────
         Eigen::Vector3d error;
-        bool useHapticGoal = false;
+        bool useHapticGoal = true;
         error = actual_ee_pos_ - (useHapticGoal ? haptic_goal_ : set_goal_);
 
         // ── 4. Effective force determination ─────────────────────────────────
@@ -418,9 +449,7 @@ private:
             const double penetration = plane_z - actual_ee_pos_.z();
             if (penetration > 0.0) {
                 effective_force.z() += table_k * penetration;
-                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 200,
-                    "Virtual contact: penetration=%.4f m, Fz=%.2f N",
-                    penetration, table_k * penetration);
+                //RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 200,"Virtual contact: penetration=%.4f m, Fz=%.2f N",penetration, table_k * penetration);
             }
         }
 
@@ -447,9 +476,14 @@ private:
         ee_vel_ += acceleration * dt;
         ee_pos_ += ee_vel_ * dt;
 
-        // ── 8. Target orientation: gripper pointing straight down ─────────────
-        Eigen::Quaterniond target_orientation(
-            Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
+        // ── 8. Target orientation: gripper pointing straight down or haptic device
+        Eigen::Quaterniond target_orientation;
+
+        if (useHapticGoal) {
+            target_orientation = haptic_orientation_goal_;
+        } else {
+            target_orientation = Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
+        }
 
         // Publish target pose for RViz visualization
         geometry_msgs::msg::PoseStamped target_pose;
@@ -526,9 +560,7 @@ private:
         msg.data.resize(7);
         for (int i = 0; i < 7; i++) msg.data[i] = q_dot[i];
         target_joint_vel_pub_->publish(msg);
-        RCLCPP_INFO(this->get_logger(),
-            "Joint velocities: [%.3f %.3f %.3f %.3f %.3f %.3f %.3f]",
-            q_dot[0], q_dot[1], q_dot[2], q_dot[3], q_dot[4], q_dot[5], q_dot[6]);
+        //RCLCPP_INFO(this->get_logger(),"Joint velocities: [%.3f %.3f %.3f %.3f %.3f %.3f %.3f]",q_dot[0], q_dot[1], q_dot[2], q_dot[3], q_dot[4], q_dot[5], q_dot[6]);
     }
 
     /**
@@ -641,6 +673,103 @@ private:
         latest_joint_state_ = *msg;
     }
 
+    void buttonCallback(const std_msgs::msg::Int32::SharedPtr msg)
+    {
+        // Determine if we're in Gazebo simulation or real hardware
+        bool is_gazebo = false;
+        this->get_parameter("use_gazebo", is_gazebo);
+        
+        if (is_gazebo) {
+            // Gazebo mode: Use simple topic-based gripper control
+            std_msgs::msg::Float64 gripper_msg;
+            
+            if ((msg->data & 1) != 0) {
+                gripper_msg.data = 0.0;  // Close gripper
+                RCLCPP_DEBUG(this->get_logger(), "Button pressed - closing gripper (Gazebo)");
+            } else {
+                gripper_msg.data = 0.03; // Open gripper
+                RCLCPP_DEBUG(this->get_logger(), "Button released - opening gripper (Gazebo)");
+            }
+            
+            gripper_pub_->publish(gripper_msg);
+        } else {
+            // Real hardware mode: Use Franka gripper action
+            
+            // Lazy initialization of action clients (if not already created)
+            if (!gripper_move_action_client_) {
+                namespace_ = this->get_namespace();
+                gripper_move_action_client_ = rclcpp_action::create_client<franka_msgs::action::Move>(
+                    this, fmt::format("{}/franka_gripper/move", namespace_));
+                gripper_grasp_action_client_ = rclcpp_action::create_client<franka_msgs::action::Grasp>(
+                    this, fmt::format("{}/franka_gripper/grasp", namespace_));
+                
+                // Wait for action servers
+                if (!gripper_move_action_client_->wait_for_action_server(std::chrono::seconds(5))) {
+                    RCLCPP_ERROR(this->get_logger(), "Move Action server not available after waiting.");
+                    return;
+                }
+                if (!gripper_grasp_action_client_->wait_for_action_server(std::chrono::seconds(5))) {
+                    RCLCPP_ERROR(this->get_logger(), "Grasp Action server not available after waiting.");
+                    return;
+                }
+            }
+            
+            // Track gripper state for toggling
+            static bool gripper_open = false;
+            
+            if ((msg->data & 1) != 0) {
+                // Button pressed: Close gripper (grasp)
+                if (!gripper_open) {
+                    RCLCPP_INFO(this->get_logger(), "Button pressed - closing gripper");
+                    
+                    franka_msgs::action::Grasp::Goal grasp_goal;
+                    grasp_goal.width = 0.015;
+                    grasp_goal.speed = 0.05;
+                    grasp_goal.force = 100.0;
+                    grasp_goal.epsilon.inner = 0.005;
+                    grasp_goal.epsilon.outer = 0.010;
+                    
+                    // Create options and set the result callback
+                    auto grasp_goal_options = rclcpp_action::Client<franka_msgs::action::Grasp>::SendGoalOptions();
+                    grasp_goal_options.result_callback = 
+                        [this](const rclcpp_action::ClientGoalHandle<franka_msgs::action::Grasp>::WrappedResult& result) {
+                            if (rclcpp_action::ResultCode::SUCCEEDED == result.code) {
+                                RCLCPP_INFO(this->get_logger(), "Grasp succeeded");
+                            } else {
+                                RCLCPP_ERROR(this->get_logger(), "Grasp failed");
+                            }
+                        };
+                    
+                    gripper_grasp_action_client_->async_send_goal(grasp_goal, grasp_goal_options);
+                    gripper_open = true;
+                }
+            } else {
+                // Button released: Open gripper (move)
+                if (gripper_open) {
+                    RCLCPP_INFO(this->get_logger(), "Button released - opening gripper");
+                    
+                    franka_msgs::action::Move::Goal move_goal;
+                    move_goal.width = 0.08;
+                    move_goal.speed = 0.2;
+                    
+                    // Create options and set the result callback
+                    auto move_goal_options = rclcpp_action::Client<franka_msgs::action::Move>::SendGoalOptions();
+                    move_goal_options.result_callback = 
+                        [this](const rclcpp_action::ClientGoalHandle<franka_msgs::action::Move>::WrappedResult& result) {
+                            if (rclcpp_action::ResultCode::SUCCEEDED == result.code) {
+                                RCLCPP_INFO(this->get_logger(), "Move succeeded");
+                            } else {
+                                RCLCPP_ERROR(this->get_logger(), "Move failed");
+                            }
+                        };
+                    
+                    gripper_move_action_client_->async_send_goal(move_goal, move_goal_options);
+                    gripper_open = false;
+                }
+            }
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // MEMBER VARIABLES
     // ─────────────────────────────────────────────────────────────────────────
@@ -660,6 +789,8 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr scaled_pose_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Vector3>::SharedPtr wrench_pub_;
     rclcpp::Publisher<geometry_msgs::msg::Vector3>::SharedPtr ee_pos_error_pub_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr button_sub_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gripper_pub_;
 
     // MoveIt kinematics
     robot_model_loader::RobotModelLoaderPtr robot_model_loader_;
@@ -694,6 +825,8 @@ private:
     Eigen::Vector3d ee_pos_;       ///< Virtual EE position (integrated)
     Eigen::Vector3d ee_vel_;       ///< Virtual EE velocity (integrated)
     Eigen::Vector3d haptic_goal_;  ///< Goal from haptic device
+    Eigen::Quaterniond haptic_orientation_goal_;
+
     Eigen::Vector3d set_goal_;     ///< Goal from /set_goal_pose topic
     Eigen::Vector3d robot_force_;  ///< Gravity-compensated sensor force
     Eigen::Vector3d set_force_;    ///< Manually injected force
@@ -701,6 +834,13 @@ private:
 
     // Physical constants
     double total_mass = 1.3397;  ///< EE + payload mass (kg) for gravity compensation
+
+        // For gripper action (real hardware mode)
+    rclcpp_action::Client<franka_msgs::action::Move>::SharedPtr gripper_move_action_client_;
+    rclcpp_action::Client<franka_msgs::action::Grasp>::SharedPtr gripper_grasp_action_client_;
+    std::string namespace_;
+
+
 };
 
 int main(int argc, char** argv) {

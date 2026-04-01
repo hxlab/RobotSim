@@ -20,6 +20,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(moveit_core REQUIRED)
 find_package(moveit_ros_planning REQUIRED)
 find_package(moveit_ros_planning_interface REQUIRED)
+find_package(franka_msgs REQUIRED)
 
 # ─────────────────────────────────────────────
 # Executable
@@ -34,6 +35,7 @@ ament_target_dependencies(admittance_control_node
   moveit_core
   moveit_ros_planning
   moveit_ros_planning_interface
+  franka_msgs
 )
 
 # ─────────────────────────────────────────────

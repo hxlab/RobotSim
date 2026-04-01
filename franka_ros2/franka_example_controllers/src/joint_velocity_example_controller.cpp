@@ -23,6 +23,10 @@
 
 #include <Eigen/Eigen>
 
+#include <mutex>
+#include <std_msgs/msg/float64_multi_array.hpp>
+#include <rclcpp/rclcpp.hpp>
+
 namespace franka_example_controllers {
 
 controller_interface::InterfaceConfiguration
@@ -33,6 +37,11 @@ JointVelocityExampleController::command_interface_configuration() const {
   for (int i = 1; i <= num_joints; ++i) {
     config.names.push_back(arm_id_ + "_joint" + std::to_string(i) + "/velocity");
   }
+
+  if (is_gazebo) {
+      config.names.push_back(arm_id_ + "_finger_joint1/position");
+  }
+
   return config;
 }
 
@@ -53,6 +62,8 @@ controller_interface::return_type JointVelocityExampleController::update(
 
 
   if (has_new_target_) {    
+    std::lock_guard<std::mutex> lock(target_mutex_);
+
     // Set all joints to the target positions
     for (int i = 0; i < num_joints; ++i) {
       if (static_cast<size_t>(i) < target_joint_velocities_.size()) {
@@ -63,6 +74,18 @@ controller_interface::return_type JointVelocityExampleController::update(
     RCLCPP_DEBUG(get_node()->get_logger(), "Setting new joint positions from external command");
     has_new_target_ = false;
   }
+
+  if (has_new_gripper_target_ && is_gazebo) {
+      std::lock_guard<std::mutex> lock(target_mutex_);
+      
+      if (command_interfaces_.size() > 7) {
+          command_interfaces_[7].set_value(target_gripper_width_);  
+      }
+      
+      RCLCPP_INFO(get_node()->get_logger(), "Setting new gripper width");
+      has_new_gripper_target_ = false;
+  }
+
   return controller_interface::return_type::OK;
 }
 
@@ -75,6 +98,10 @@ void JointVelocityExampleController::jointVelocityCallback(
                  msg->data.size(), num_joints);
     return;
   }
+
+  std::lock_guard<std::mutex> lock(target_mutex_);
+
+
   target_joint_velocities_.clear();
   for (size_t i = 0; i < msg->data.size(); ++i) {
     target_joint_velocities_.push_back(msg->data[i]);
@@ -83,6 +110,23 @@ void JointVelocityExampleController::jointVelocityCallback(
   has_new_target_ = true;
 }
 
+void JointVelocityExampleController::gripperCallback(
+    const std_msgs::msg::Float64::SharedPtr msg) {
+  
+  // Franka Hand gripper width range is 0.0 to 0.08 meters
+  if (msg->data < 0.0 || msg->data > 0.03) {
+    RCLCPP_WARN(get_node()->get_logger(), 
+                "Gripper width %.3f out of range [0.0, 0.03]. Clamping.", 
+                msg->data);
+  }
+  
+  std::lock_guard<std::mutex> lock(target_mutex_);
+  
+  target_gripper_width_ = std::clamp(msg->data, 0.0, 0.03);
+  has_new_gripper_target_ = true;
+  
+  RCLCPP_INFO(get_node()->get_logger(), "Received new gripper width: %.4f m", target_gripper_width_);
+}
 
 CallbackReturn JointVelocityExampleController::on_init() {
   try {
@@ -92,6 +136,15 @@ CallbackReturn JointVelocityExampleController::on_init() {
     fprintf(stderr, "Exception thrown during init stage with message: %s \n", e.what());
     return CallbackReturn::ERROR;
   }
+
+  // member variables
+  has_new_target_ = false;
+  target_joint_velocities_.resize(num_joints, 0.0);
+
+  //gripper variables
+  has_new_gripper_target_ = false;
+  target_gripper_width_ = 0.0;
+
   return CallbackReturn::SUCCESS;
 }
 
@@ -104,6 +157,14 @@ CallbackReturn JointVelocityExampleController::on_configure(
     10,  // Queue size
     std::bind(&JointVelocityExampleController::jointVelocityCallback, this, std::placeholders::_1)
   );
+
+  if (is_gazebo) {
+      gripper_subscription_ = get_node()->create_subscription<std_msgs::msg::Float64>(
+          "/target_gripper_width",
+          10,
+          std::bind(&JointVelocityExampleController::gripperCallback, this, std::placeholders::_1)
+      );
+  }
 
   auto parameters_client =
       std::make_shared<rclcpp::AsyncParametersClient>(get_node(), "robot_state_publisher");
