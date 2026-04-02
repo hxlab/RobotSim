@@ -19,6 +19,7 @@
 #include <controller_interface/controller_interface.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -42,7 +43,6 @@ class JointVelocityExampleController : public controller_interface::ControllerIn
 
   std::vector<double> target_joint_velocities_;
   bool has_new_target_;
-  std::mutex target_mutex_;
   void jointVelocityCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
   rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr joint_velocity_subscription_;
 
@@ -52,6 +52,14 @@ class JointVelocityExampleController : public controller_interface::ControllerIn
   bool is_gazebo{false};
   const int num_joints = 7;
   rclcpp::Duration elapsed_time_ = rclcpp::Duration(0, 0);
+  std::mutex target_mutex_;
+
+  // Gripper control members
+  rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr gripper_subscription_;
+  double target_gripper_width_;
+  bool has_new_gripper_target_;
+  void gripperCallback(const std_msgs::msg::Float64::SharedPtr msg);
+
 };
 
 }  // namespace franka_example_controllers
