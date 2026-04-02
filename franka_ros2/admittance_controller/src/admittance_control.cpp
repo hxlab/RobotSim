@@ -426,7 +426,7 @@ private:
 
         // ── 3. Position error: e = x_actual - x_goal ─────────────────────────
         Eigen::Vector3d error;
-        bool useHapticGoal = true;
+        bool useHapticGoal = false;
         error = actual_ee_pos_ - (useHapticGoal ? haptic_goal_ : set_goal_);
 
         // ── 4. Effective force determination ─────────────────────────────────

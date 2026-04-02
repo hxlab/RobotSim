@@ -16,6 +16,8 @@
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
+  <depend>franka_msgs</depend>
+
 
   <!-- MoveIt (for kinematics + Jacobian) -->
   <depend>moveit_core</depend>
