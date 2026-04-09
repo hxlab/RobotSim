@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Franka Robotics GmbH
+// Copyright (c) 2021 Franka Emika GmbH
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@
 #include <controller_interface/controller_interface.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include <mutex>
+#include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
-
 
 using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
 
@@ -44,15 +45,7 @@ class JointImpedanceExampleController : public controller_interface::ControllerI
   CallbackReturn on_activate(const rclcpp_lifecycle::State& previous_state) override;
 
  private:
-
-  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr joint_torque_subscription_;
-  std::vector<double> target_joint_torques_;
-  bool has_new_target_;
-
-  void jointTorqueCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg);
-  
   std::string arm_id_;
-  std::string robot_description_;
   const int num_joints = 7;
   Vector7d q_;
   Vector7d initial_q_;
@@ -60,8 +53,14 @@ class JointImpedanceExampleController : public controller_interface::ControllerI
   Vector7d dq_filtered_;
   Vector7d k_gains_;
   Vector7d d_gains_;
-  double elapsed_time_{0.0};
+  rclcpp::Time start_time_;
   void updateJointStates();
+
+  rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr velocity_sub_;
+  Vector7d target_velocity_;
+  Vector7d q_goal_;
+  rclcpp::Time last_command_time_;
+  std::mutex velocity_mutex_;
 };
 
 }  // namespace franka_example_controllers

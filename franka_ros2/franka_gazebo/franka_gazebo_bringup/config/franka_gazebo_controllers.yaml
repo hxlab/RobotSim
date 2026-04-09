@@ -24,19 +24,5 @@ joint_velocity_example_controller:
   
 joint_impedance_example_controller:
   ros__parameters:
-    k_gains:
-      - 24.0
-      - 24.0
-      - 24.0
-      - 24.0
-      - 10.0
-      - 6.0
-      - 2.0
-    d_gains:
-      - 2.0
-      - 2.0
-      - 2.0
-      - 1.0
-      - 1.0
-      - 1.0
-      - 0.5
+    k_gains: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    d_gains: [30.0, 30.0, 30.0, 25.0, 15.0, 10.0, 5.0]

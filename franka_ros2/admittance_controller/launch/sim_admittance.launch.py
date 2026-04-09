@@ -58,7 +58,8 @@ def get_robot_description(context: LaunchContext, arm_id, load_gripper, franka_h
             'hand': load_gripper_str,
             'ros2_control': 'true',
             'gazebo': 'true',
-            'ee_id': franka_hand_str
+            'ee_id': franka_hand_str,
+            'gazebo_effort': 'true'
         }
     )
 
@@ -105,7 +106,7 @@ def generate_launch_description():
             'robots/fr3/fr3.urdf.xacro'),
         mappings={
             'arm_id': 'fr3', 'hand': 'true',
-            'ros2_control': 'true', 'gazebo': 'true', 'ee_id': 'franka_hand'
+            'ros2_control': 'true', 'gazebo': 'true', 'ee_id': 'franka_hand', 'gazebo_effort': 'true'
         }
     )
     robot_description_semantic_config = xacro.process_file(
@@ -239,9 +240,9 @@ def generate_launch_description():
         output='screen'
     )
 
-    load_joint_velocity_example_controller = ExecuteProcess(
+    load_joint_impedance_example_controller = ExecuteProcess(
         cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             'joint_velocity_example_controller'],
+             'joint_impedance_example_controller'],
         output='screen'
     )
 
@@ -303,7 +304,7 @@ def generate_launch_description():
         RegisterEventHandler(
             event_handler=OnProcessExit(
                 target_action=load_joint_state_broadcaster,
-                on_exit=[load_joint_velocity_example_controller],
+                on_exit=[load_joint_impedance_example_controller],
             )
         ),
 
