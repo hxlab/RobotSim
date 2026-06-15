@@ -3,7 +3,7 @@
     "privileged": true,
     "remoteUser": "user",
     "dockerComposeFile": "../docker-compose.yml",
-    "service": "franka_ros2",
+    "service": "robotsim",
     "workspaceFolder": "/ros2_ws",
     "initializeCommand": "echo \"USER_UID=$(id -u $USER)\nUSER_GID=$(id -g $USER)\" > .env",
     "customizations": {

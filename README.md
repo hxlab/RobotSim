@@ -1,19 +1,14 @@
-# ME780 Assignment 2 — Admittance Control (Track A)
-**Author:** Steven Yang  
-**Course:** ME780 – Collaborative Robotics
+# RobotSim Design Artifacts
+**Authors:** Steven Yang, Aidan Kirwin, Dawang Zhang
 **Platform:** ROS 2 Humble | Ubuntu 22.04 | Franka FR3
 
 ---
 
 ## Overview
 
-THE CODE I DEVELOPED IS THE IN:  franka_ros2/src/MY_ADMITTANCE_CONTROL 
-
-THE CONTROLLER CODE IS IN: franka_ros2/src/MY_ADMITTANCE_CONTROL/src/admittance_control_node.cpp
-
-I also modified the file joint_velocity_example_controller.cpp to read ros2 topics to command the joint velocities
-
-This workspace implements a Cartesian admittance controller for the Franka FR3 robot arm in simulation. The controller maps external forces and position errors to compliant end-effector motion using a virtual second-order spring-damper system. Joint velocities are computed via a damped least-squares Jacobian pseudoinverse and sent to a modified low-level velocity controller.
+This workspace implements a Cartesian admittance controller for the Franka FR3 robot arm in simulation. 
+- The controller maps external forces and position errors to compliant end-effector motion using a virtual second-order spring-damper system. 
+- Joint velocities are computed via a damped least-squares Jacobian pseudoinverse and sent to a modified low-level velocity controller.
 
 ## Dependencies
 
@@ -29,41 +24,6 @@ This workspace implements a Cartesian admittance controller for the Franka FR3 r
 
 The admittance node interfaces with the **Franka joint velocity example controller** (`franka_example_controllers`), which has been modified to subscribe to a ROS 2 topic for desired joint velocities. The robot is spawned and simulated using **franka_gazebo** (Ignition Gazebo / Gazebo Fortress).
 
----
-
-## Repository Structure
-
-The workspace is based on the `franka_ros2` repository. The custom admittance controller lives alongside the Franka packages under `src/`:
-
-```
-franka_ros2/                          ← Open this folder in VS Code
-├── .devcontainer/                    ← Dev container config (Docker)
-├── src/
-│   ├── franka_example_controllers/   ← MODIFIED: joint_velocity_example_controller
-│   │   └── src/
-│   │       └── joint_velocity_example_controller.cpp   ← Reads from /target_joint_velocities topic
-│   ├── franka_gazebo/                ← Franka Gazebo simulation
-│   ├── franka_description/           ← Robot URDF/xacro
-│   ├── ... (other franka_ros2 packages)
-│   └── MY_ADMITTANCE_CONTROL/        ← MY CODE, CUSTOM PACKAGE (package name: admittance_controller)
-│       ├── src/
-│       │   └── admittance_control_node.cpp
-│       ├── scripts/
-│       │   ├── record_run.sh
-│       │   ├── extract_bag.py
-│       │   └── plot_results.py
-│       ├── launch/
-│       │   └── sim_admittance.launch.py
-│       ├── worlds/
-│       │   └── robot_table.sdf
-│       ├── data_{SCENARIO}/
-│       ├── CMakeLists.txt
-│       ├── package.xml
-│       └── README.md
-```
-
----
-
 ## Modification to `franka_example_controllers`
 
 The `JointVelocityExampleController` in `franka_example_controllers` has been modified to accept desired joint velocities from an external ROS 2 topic instead of computing them internally. It subscribes to:
@@ -76,7 +36,7 @@ The admittance controller node publishes to this topic to command the robot.
 
 ---
 
-## Workflow: Opening and Building the Workspace
+## Opening and Building the Workspace
 
 ### 1. Open in VS Code Dev Container
 

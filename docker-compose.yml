@@ -1,5 +1,5 @@
 services:
-  franka_ros2:
+  robotsim:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,7 +7,7 @@ services:
         - USER_UID=${USER_UID}
         - USER_GID=${USER_GID}
 
-    container_name: franka_ros2
+    container_name: robotsim
 
     network_mode: host
     ipc: host
