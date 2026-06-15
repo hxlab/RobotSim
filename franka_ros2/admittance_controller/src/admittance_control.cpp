@@ -71,6 +71,8 @@
 
 #include <deque>
 
+
+
 // Global TF2 buffer and listener (used for gravity compensation frame transforms)
 std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
 std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
@@ -87,12 +89,12 @@ public:
         this->declare_parameter<double>("position_scale_y", 4.0);
         this->declare_parameter<double>("position_scale_z", 4.0);
         this->declare_parameter<double>("height_offset", 0.3);       // z offset for haptic mapping
-        this->declare_parameter<double>("mass", 10.0);               // virtual inertia M_d (kg)
+        this->declare_parameter<double>("mass", 1.0);               // virtual inertia M_d (kg)
         this->declare_parameter<double>("damping", 140.0);           // virtual damping D_d (Ns/m)
-        this->declare_parameter<double>("stiffness", 1000.0);        // virtual stiffness K_d (N/m)
+        this->declare_parameter<double>("stiffness", 2000.0);        // virtual stiffness K_d (N/m)
         this->declare_parameter<double>("max_force_output", 5.0);    // haptic force clamp (N)
         this->declare_parameter<double>("valid_distance_threshold", 0.55);
-        this->declare_parameter<bool>("use_gazebo", false);
+        this->declare_parameter<bool>("use_gazebo", true);
 
         base_frame_               = this->get_parameter("base_frame").as_string();
         position_scale_x_         = this->get_parameter("position_scale_x").as_double();
@@ -123,6 +125,9 @@ public:
         robot_force_ = Eigen::Vector3d::Zero();
         set_force_   = Eigen::Vector3d::Zero();
 
+        target_gripper_width_ = 0.04;
+        mode_ = 0;
+
         // ─── 4. Service Clients ───────────────────────────────────────────────
         ik_client_ = this->create_client<moveit_msgs::srv::GetPositionIK>("/compute_ik");
         fk_client_ = this->create_client<moveit_msgs::srv::GetPositionFK>("/compute_fk");
@@ -149,14 +154,22 @@ public:
             std::bind(&SimpleIKNode::jointStateCallback, this, std::placeholders::_1));
 
         button_sub_ = this->create_subscription<std_msgs::msg::Int32>(
-            "/haptic/buttons", 10,
+            "haptic/buttons", 10,
             std::bind(&SimpleIKNode::buttonCallback, this, std::placeholders::_1));
 
         gripper_pub_ = this->create_publisher<std_msgs::msg::Float64>(
             "/target_gripper_width", 10);
+        
+        mode_sub_ = this->create_subscription<std_msgs::msg::Int32>(
+            "/toggle_mode", 10,
+            [this](const std_msgs::msg::Int32::SharedPtr msg) {
+                mode_ = (mode_ == 0) ? 1 : 0;
+                RCLCPP_INFO(this->get_logger(), "Mode toggled → %d (%s)",
+                    mode_, mode_ == 0 ? "HOME pose" : "Haptic follow");
+            });
 
         // ─── 6. Publishers ────────────────────────────────────────────────────
-        haptic_force_pub_        = this->create_publisher<geometry_msgs::msg::Vector3>("/haptic/force_command", 10);
+        haptic_force_pub_        = this->create_publisher<geometry_msgs::msg::Vector3>("haptic/force_command", 10);
         target_joint_pub_        = this->create_publisher<std_msgs::msg::Float64MultiArray>("/target_joint_positions", 10);
         target_joint_vel_pub_    = this->create_publisher<std_msgs::msg::Float64MultiArray>("/target_joint_velocities", 10);
         target_joint_torque_pub_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("/target_joint_torques", 10);
@@ -168,9 +181,9 @@ public:
         tf_buffer_   = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
-        // ─── 8. Control Timer (50 Hz) ─────────────────────────────────────────
+        // ─── 8. Control Timer (100 Hz) ─────────────────────────────────────────
         admittance_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(20),
+            std::chrono::milliseconds(10),
             std::bind(&SimpleIKNode::admittanceLoop, this));
 
         last_time_ = this->now();
@@ -215,8 +228,57 @@ private:
         haptic_goal_.y() = -msg->position.x * position_scale_y_;
         haptic_goal_.z() = (msg->position.y * position_scale_z_) + height_offset_;
 
+        // Workspace boundaries (robot frame)
+        const double x_min=0.0, x_max=0.6;
+        const double y_min=-0.45, y_max=0.45;
+        const double z_min=0.0, z_max=0.70;
+
+        // ── Boundary force feedback ───────────────────────────────────────────
+        // Compute penetration depth past each boundary, output restoring force
+        // proportional to penetration. Force is in robot frame, then remapped
+        // to haptic device frame (same axis mapping as robotForceToHapticForce).
+        const double k_wall = 200.0;  // wall stiffness (N/m) — tune to feel
+        Eigen::Vector3d boundary_force = Eigen::Vector3d::Zero();
+
+        // X axis
+        if      (haptic_goal_.x() < x_min) boundary_force.x() =  k_wall * (x_min - haptic_goal_.x());
+        else if (haptic_goal_.x() > x_max) boundary_force.x() = -k_wall * (haptic_goal_.x() - x_max);
+
+        // Y axis
+        if      (haptic_goal_.y() < y_min) boundary_force.y() =  k_wall * (y_min - haptic_goal_.y());
+        else if (haptic_goal_.y() > y_max) boundary_force.y() = -k_wall * (haptic_goal_.y() - y_max);
+
+        // Z axis
+        if      (haptic_goal_.z() < z_min) boundary_force.z() =  k_wall * (z_min - haptic_goal_.z());
+        else if (haptic_goal_.z() > z_max) boundary_force.z() = -k_wall * (haptic_goal_.z() - z_max);
+
+        // Remap robot frame → haptic device frame and publish
+        if (boundary_force.norm() > 0.0) {
+            geometry_msgs::msg::Vector3 force_out;
+            force_out.x = -boundary_force.y();
+            force_out.y =  boundary_force.z();
+            force_out.z = -boundary_force.x();
+
+            // Clamp magnitude
+            double mag = std::sqrt(force_out.x*force_out.x +
+                                force_out.y*force_out.y +
+                                force_out.z*force_out.z);
+            if (mag > max_force_output_) {
+                double scale = max_force_output_ / mag;
+                force_out.x *= scale;
+                force_out.y *= scale;
+                force_out.z *= scale;
+            }
+
+            haptic_force_pub_->publish(force_out);
+        }
+
+        // Hard clamp after force is computed (so penetration depth is accurate)
+        haptic_goal_.x() = std::clamp(haptic_goal_.x(), x_min, x_max);
+        haptic_goal_.y() = std::clamp(haptic_goal_.y(), y_min, y_max);
+        haptic_goal_.z() = std::clamp(haptic_goal_.z(), z_min, z_max);
+
         // Convert haptic orientation from message to Eigen
-        // Eigen::Quaterniond constructor is (w, x, y, z)
         Eigen::Quaterniond haptic_orientation(
             latest_haptic_pose_.orientation.w,
             latest_haptic_pose_.orientation.x,
@@ -224,14 +286,12 @@ private:
             latest_haptic_pose_.orientation.z
         );
 
-        // Rotation quaternions using AngleAxis
         Eigen::Quaterniond rot_1(Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitZ()));
         Eigen::Quaterniond rot_0(Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitZ()));
-
-        //haptic_orientation_goal_ = (rot_1 * haptic_orientation * rot_0).normalized();
-
         Eigen::Quaterniond base_down(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
         haptic_orientation_goal_ = (rot_1 * haptic_orientation * rot_0 * base_down).normalized();
+
+        //applyHapticDamping(*msg);
     }
     /**
      * @brief Receives a desired Cartesian goal pose published to /set_goal_pose.
@@ -369,6 +429,66 @@ private:
         haptic_force_pub_->publish(force_out);
     }
 
+    void applyHapticDamping(const geometry_msgs::msg::Pose& current_pose)
+    {
+        const bool DAMPING_ENABLED = true;
+
+        // ── Velocity estimation via finite difference ─────────────────────────
+        static geometry_msgs::msg::Pose prev_pose;
+        static rclcpp::Time prev_time;
+        static bool initialized = false;
+
+        rclcpp::Time now = this->now();
+
+        if (!initialized) {
+            prev_pose = current_pose;
+            prev_time = now;
+            initialized = true;
+            return;
+        }
+
+        double dt = (now - prev_time).seconds();
+        if (dt <= 0.0 || dt > 0.1) {
+            prev_pose = current_pose;
+            prev_time = now;
+            return;
+        }
+
+        // Raw velocity in haptic device frame
+        Eigen::Vector3d haptic_vel(
+            (current_pose.position.x - prev_pose.position.x) / dt,
+            (current_pose.position.y - prev_pose.position.y) / dt,
+            (current_pose.position.z - prev_pose.position.z) / dt
+        );
+
+        prev_pose = current_pose;
+        prev_time = now;
+
+        // ── IIR low-pass filter on velocity (reduces differentiation noise) ───
+        static Eigen::Vector3d filtered_vel = Eigen::Vector3d::Zero();
+        const double alpha = 0.15;  // lower = smoother but more lag
+        filtered_vel = alpha * haptic_vel + (1.0 - alpha) * filtered_vel;
+
+        // ── Damping force: F = -B * v ─────────────────────────────────────────
+        const double B = 80.0;  // damping coefficient (N·s/m) — tune to feel
+        Eigen::Vector3d damping_force = -B * haptic_vel;
+
+        // ── Clamp magnitude while preserving direction ────────────────────────
+        double magnitude = damping_force.norm();
+        if (magnitude > max_force_output_) {
+            damping_force *= (max_force_output_ / magnitude);
+        }
+
+        // ── Publish ───────────────────────────────────────────────────────────
+        geometry_msgs::msg::Vector3 force_out;
+        force_out.x = DAMPING_ENABLED ? damping_force.x() : 0.0;
+        force_out.y = DAMPING_ENABLED ? damping_force.y() : 0.0;
+        force_out.z = DAMPING_ENABLED ? damping_force.z() : 0.0;
+
+        haptic_force_pub_->publish(force_out);
+    }
+
+
     // ─────────────────────────────────────────────────────────────────────────
     // MAIN ADMITTANCE CONTROL LOOP (50 Hz)
     // ─────────────────────────────────────────────────────────────────────────
@@ -424,10 +544,44 @@ private:
         actual_ee_pos_ = ee_transform.translation();
         actual_ee_pos_initialized_ = true;
 
+
+        if (mode_ == 0) {
+            // ── Mode 0: joint-space P control to home pose ────────────────────
+            const std::vector<double> home_joints =
+                {0.0, 0.0, 0.0, -M_PI/2.0, 0.0, M_PI/2.0, M_PI/4.0};
+            const std::vector<std::string> arm_joints_ordered = {
+                "fr3_joint1","fr3_joint2","fr3_joint3","fr3_joint4",
+                "fr3_joint5","fr3_joint6","fr3_joint7"};
+
+            const double k_home = 2.0;   // proportional gain (rad/s per rad error)
+            const double max_home_vel = 0.5;
+
+            Eigen::VectorXd q_dot(7);
+            for (int i = 0; i < 7; i++) {
+                auto it = std::find(latest_joint_state_.name.begin(),
+                                    latest_joint_state_.name.end(),
+                                    arm_joints_ordered[i]);
+                double q_current = 0.0;
+                if (it != latest_joint_state_.name.end())
+                    q_current = latest_joint_state_.position[
+                        std::distance(latest_joint_state_.name.begin(), it)];
+
+                double err = home_joints[i] - q_current;
+                q_dot[i] = std::clamp(k_home * err, -max_home_vel, max_home_vel);
+            }
+
+            // Reset admittance integrator to actual EE pos so mode-1
+            // re-entry doesn't jump
+            ee_pos_  = actual_ee_pos_;
+            ee_vel_  = Eigen::Vector3d::Zero();
+            // haptic_goal_ = actual_ee_pos_;
+
+            publishTargetJointVelocities(q_dot);
+            return;   // skip the rest of the Cartesian admittance path
+        }
+
         // ── 3. Position error: e = x_actual - x_goal ─────────────────────────
-        Eigen::Vector3d error;
-        bool useHapticGoal = false;
-        error = actual_ee_pos_ - (useHapticGoal ? haptic_goal_ : set_goal_);
+        Eigen::Vector3d error = actual_ee_pos_ - haptic_goal_;
 
         // ── 4. Effective force determination ─────────────────────────────────
         Eigen::Vector3d effective_force = Eigen::Vector3d::Zero();
@@ -438,6 +592,9 @@ private:
             effective_force = 0.03 * robot_force_;
         } else {
             // Blend small sensor contribution with manually set force
+            effective_force = 0.0 * robot_force_;
+
+            /*
             effective_force = 0.01 * robot_force_ + set_force_;
 
             // ── Virtual contact plane at z = 0.05 m ──────────────────────────
@@ -451,6 +608,8 @@ private:
                 effective_force.z() += table_k * penetration;
                 //RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 200,"Virtual contact: penetration=%.4f m, Fz=%.2f N",penetration, table_k * penetration);
             }
+            */
+            
         }
 
         // ── 5. Publish effective force and position error for data logging ────
@@ -479,11 +638,7 @@ private:
         // ── 8. Target orientation: gripper pointing straight down or haptic device
         Eigen::Quaterniond target_orientation;
 
-        if (useHapticGoal) {
-            target_orientation = haptic_orientation_goal_;
-        } else {
-            target_orientation = Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX());
-        }
+        target_orientation = haptic_orientation_goal_;
 
         // Publish target pose for RViz visualization
         geometry_msgs::msg::PoseStamped target_pose;
@@ -511,10 +666,10 @@ private:
         q_err.normalize();
         if (q_err.w() < 0.0) q_err.coeffs() = -q_err.coeffs();  // shortest-path convention
 
-        const double k_orient   = 50.0;
-        const double max_ang_vel = 0.5;
+        const double k_orient   = 100.0;
+        //const double max_ang_vel = 10.0;
         Eigen::Vector3d angular_vel = 2.0 * k_orient * q_err.vec();
-        angular_vel = angular_vel.cwiseMax(-max_ang_vel).cwiseMin(max_ang_vel);
+        //angular_vel = angular_vel.cwiseMax(-max_ang_vel).cwiseMin(max_ang_vel);
 
         // ── 11. Build 6D Cartesian velocity [vx vy vz wx wy wz] ──────────────
         Eigen::VectorXd cart_vel(6);
@@ -532,8 +687,7 @@ private:
 
         // ── 13. Safety clamp joint velocities ────────────────────────────────
         const double max_joint_vel = 0.5;  // rad/s (conservative)
-        for (int i = 0; i < 7; i++)
-            q_dot[i] = std::clamp(q_dot[i], -max_joint_vel, max_joint_vel);
+        // for (int i = 0; i < 7; i++) q_dot[i] = std::clamp(q_dot[i], -max_joint_vel, max_joint_vel);
 
         // ── 14. Publish to low-level velocity controller ──────────────────────
         publishTargetJointVelocities(q_dot);
@@ -576,8 +730,8 @@ private:
         } else {
             RCLCPP_WARN(this->get_logger(), "No joint state received, using defaults");
             sensor_msgs::msg::JointState js;
-            js.name     = {"fr3_joint1","fr3_joint2","fr3_joint3","fr3_joint4",
-                           "fr3_joint5","fr3_joint6","fr3_joint7"};
+            js.name = {"fr3_joint1","fr3_joint2","fr3_joint3","fr3_joint4",
+            "fr3_joint5","fr3_joint6","fr3_joint7"};
             js.position = {0, -0.785, 0, -2.356, 0, 1.571, 0.785};  // Franka home
             robot_state.joint_state = js;
         }
@@ -659,7 +813,7 @@ private:
     void publishJoints(const sensor_msgs::msg::JointState& sol) {
         std_msgs::msg::Float64MultiArray msg;
         std::vector<std::string> names = {"fr3_joint1","fr3_joint2","fr3_joint3",
-                                          "fr3_joint4","fr3_joint5","fr3_joint6","fr3_joint7"};
+                                  "fr3_joint4","fr3_joint5","fr3_joint6","fr3_joint7"};
         for (auto& n : names) {
             auto it = std::find(sol.name.begin(), sol.name.end(), n);
             if (it != sol.name.end())
@@ -675,33 +829,41 @@ private:
 
     void buttonCallback(const std_msgs::msg::Int32::SharedPtr msg)
     {
+        /*
+        
+        */
         // Determine if we're in Gazebo simulation or real hardware
-        bool is_gazebo = false;
+        bool is_gazebo = true;
         this->get_parameter("use_gazebo", is_gazebo);
         
         if (is_gazebo) {
-            // Gazebo mode: Use simple topic-based gripper control
             std_msgs::msg::Float64 gripper_msg;
-            
-            if ((msg->data & 1) != 0) {
-                gripper_msg.data = 0.0;  // Close gripper
-                RCLCPP_DEBUG(this->get_logger(), "Button pressed - closing gripper (Gazebo)");
-            } else {
-                gripper_msg.data = 0.03; // Open gripper
-                RCLCPP_DEBUG(this->get_logger(), "Button released - opening gripper (Gazebo)");
+
+            if (msg->data == 1) {
+                target_gripper_width_ = std::clamp(target_gripper_width_ - 0.0005, 0.0, 0.04);
+                RCLCPP_DEBUG(this->get_logger(), "Button 1 - closing gripper (Gazebo), target=%.4f", target_gripper_width_);
+            } else if (msg->data == 2) {
+                target_gripper_width_ = std::clamp(target_gripper_width_ + 0.0005, 0.0, 0.04);
+                RCLCPP_DEBUG(this->get_logger(), "Button 2 - opening gripper (Gazebo), target=%.4f", target_gripper_width_);
             }
-            
+            // msg->data == 0 → do nothing
+
+            gripper_msg.data = target_gripper_width_;
             gripper_pub_->publish(gripper_msg);
         } else {
             // Real hardware mode: Use Franka gripper action
             
             // Lazy initialization of action clients (if not already created)
             if (!gripper_move_action_client_) {
-                namespace_ = this->get_namespace();
+
+
+                std::string ns = this->get_namespace();
+                if (ns == "/") ns = "";
+
                 gripper_move_action_client_ = rclcpp_action::create_client<franka_msgs::action::Move>(
-                    this, fmt::format("{}/franka_gripper/move", namespace_));
+                    this, fmt::format("{}/fr3_gripper/move", namespace_));
                 gripper_grasp_action_client_ = rclcpp_action::create_client<franka_msgs::action::Grasp>(
-                    this, fmt::format("{}/franka_gripper/grasp", namespace_));
+                    this, fmt::format("{}/fr3_gripper/grasp", namespace_));
                 
                 // Wait for action servers
                 if (!gripper_move_action_client_->wait_for_action_server(std::chrono::seconds(5))) {
@@ -723,12 +885,12 @@ private:
                     RCLCPP_INFO(this->get_logger(), "Button pressed - closing gripper");
                     
                     franka_msgs::action::Grasp::Goal grasp_goal;
-                    grasp_goal.width = 0.015;
-                    grasp_goal.speed = 0.05;
+                    grasp_goal.speed = 0.15;
                     grasp_goal.force = 100.0;
-                    grasp_goal.epsilon.inner = 0.005;
-                    grasp_goal.epsilon.outer = 0.010;
-                    
+                    grasp_goal.width        = 0.04;   // approximate object width
+                    grasp_goal.epsilon.inner = 0.04;  // generous tolerance below
+                    grasp_goal.epsilon.outer = 0.04;  // generous tolerance above
+                                        
                     // Create options and set the result callback
                     auto grasp_goal_options = rclcpp_action::Client<franka_msgs::action::Grasp>::SendGoalOptions();
                     grasp_goal_options.result_callback = 
@@ -791,6 +953,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Vector3>::SharedPtr ee_pos_error_pub_;
     rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr button_sub_;
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr gripper_pub_;
+    rclcpp::Subscription<std_msgs::msg::Int32>::SharedPtr mode_sub_;
 
     // MoveIt kinematics
     robot_model_loader::RobotModelLoaderPtr robot_model_loader_;
@@ -820,6 +983,10 @@ private:
     double k_;            ///< Virtual stiffness K_d (N/m)
     double d_calculated;  ///< Auto-calculated damping: 2*zeta*sqrt(M*K)
     double zeta;          ///< Damping ratio (1.0 = critically damped)
+
+    double target_gripper_width_;
+
+    int mode_;
 
     // Controller state (integrated virtual dynamics)
     Eigen::Vector3d ee_pos_;       ///< Virtual EE position (integrated)
