@@ -246,7 +246,6 @@ def generate_launch_description():
         output='screen'
     )
 
-    # ========== OTHER NODES ==========
     admittance_control_node = Node(
         package='admittance_controller',
         executable='admittance_control_node',

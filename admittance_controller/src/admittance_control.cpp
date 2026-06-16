@@ -20,8 +20,7 @@
  *   - Gravity-compensated force reading from joint wrench topic
  *   - Damped least-squares Jacobian pseudoinverse for singularity robustness
  *   - Orientation stabilization (gripper pointing down)
- *   - CAN IGNORE : Code related to haptic device, all features related to the haptic device are DISABLED in this code. That was resused code i wrote from the Final Project, and was used to help with debugging.
- * 
+ *
  * ROS 2 Topics:
  *   Subscribed:
  *     - /goal_pose                   (geometry_msgs/Pose)          : Desired EE goal
@@ -37,7 +36,6 @@
  * Dependencies: ROS 2 Humble, MoveIt 2, Eigen3, franka_ros2, franka_gazebo
  *
  * @author Steven Yang
- * @course ME780 - Collaborative Robotics, Winter 2026
  */
 
 #include <rclcpp/rclcpp.hpp>
@@ -355,10 +353,11 @@ private:
         // Final corrected force: remove gravity and motion artifacts
         robot_force_ = raw_force + weight_in_sensor - damping_force;
 
-        geometry_msgs::msg::Vector3 forceMsg;
-        forceMsg.x = robot_force_.x();
-        forceMsg.y = robot_force_.y();
-        forceMsg.z = robot_force_.z();
+        // geometry_msgs::msg::Vector3 forceMsg;
+        // forceMsg.x = robot_force_.x();
+        // forceMsg.y = robot_force_.y();
+        // forceMsg.z = robot_force_.z();
+        robotForceToHapticForce(robot_force_);
     }
 
     /**

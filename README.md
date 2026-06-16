@@ -40,11 +40,6 @@ The admittance controller node publishes to this topic to command the robot.
 
 ### 1. Open in VS Code Dev Container
 
-```bash
-cd ~/franka_ros2          # or wherever the repo is cloned
-code .                    # open in VS Code
-```
-
 When prompted by VS Code, click **"Reopen in Container"** (or use `Ctrl+Shift+P` → *Dev Containers: Reopen in Container*).
 
 The dev container entrypoint script (`franka_entrypoint.sh`) will automatically clone all Franka dependencies into `/ros2_ws/src` using `vcs import`.
@@ -81,6 +76,7 @@ This brings up:
 - `robot_state_publisher`
 - `joint_state_publisher`
 - The admittance controller node
+- The haptic device node
 
 ### 2. Send a goal position
 
@@ -105,6 +101,11 @@ ros2 topic pub --once /target_joint_velocities std_msgs/msg/Float64MultiArray \
   "data: [0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0]"
 ```
 
+### 6. Enable haptic device control mode
+
+```bash
+ros2 topic pub --once /toggle_mode std_msgs/msg/Int32 \
+  "{data: 0}"
 ---
 
 ## Node: `admittance_control_node`

@@ -39,7 +39,8 @@ JointVelocityExampleController::command_interface_configuration() const {
   }
 
   if (is_gazebo) {
-      config.names.push_back(arm_id_ + "_finger_joint1/position");
+      config.names.push_back(arm_id_ + "_finger_joint1/velocity");
+      config.names.push_back(arm_id_ + "_finger_joint2/velocity");
   }
 
   return config;
@@ -49,43 +50,133 @@ controller_interface::InterfaceConfiguration
 JointVelocityExampleController::state_interface_configuration() const {
   controller_interface::InterfaceConfiguration config;
   config.type = controller_interface::interface_configuration_type::INDIVIDUAL;
+
+  // Arm joints
   for (int i = 1; i <= num_joints; ++i) {
     config.names.push_back(arm_id_ + "_joint" + std::to_string(i) + "/position");
-    config.names.push_back(arm_id_ + "_joint" + std::to_string(i) + "/velocity");
+    //config.names.push_back(arm_id_ + "_joint" + std::to_string(i) + "/velocity");
   }
+
+  // Gripper states (needed now!)
+  if (is_gazebo) {
+    config.names.push_back(arm_id_ + "_finger_joint1/position");
+    config.names.push_back(arm_id_ + "_finger_joint2/position");
+  }
+
   return config;
 }
 
 controller_interface::return_type JointVelocityExampleController::update(
     const rclcpp::Time& /*time*/,
-    const rclcpp::Duration& period) {
-
-
-  if (has_new_target_) {    
+    const rclcpp::Duration& /*period*/) {
+    
+  // Check if we have a new target from external command
+  if (has_new_target_) {
     std::lock_guard<std::mutex> lock(target_mutex_);
-
-    // Set all joints to the target positions
+    
+    // Set all arm joints to the target velocities
     for (int i = 0; i < num_joints; ++i) {
       if (static_cast<size_t>(i) < target_joint_velocities_.size()) {
         command_interfaces_[i].set_value(target_joint_velocities_[i]);
       }
     }
     
-    RCLCPP_DEBUG(get_node()->get_logger(), "Setting new joint positions from external command");
+    RCLCPP_DEBUG(get_node()->get_logger(), "Setting new joint velocities from external command");
     has_new_target_ = false;
   }
 
-  if (has_new_gripper_target_ && is_gazebo) {
-      std::lock_guard<std::mutex> lock(target_mutex_);
+  // Handle gripper centering control
+  if (is_gazebo) {
+    std::lock_guard<std::mutex> lock(target_mutex_);
+    
+    // Control parameters
+    const double kp_gripper = 1000.0;  // Proportional gain for gripper velocity control
+    const double kp_gripper_center = 1000.0;  // Proportional gain for gripper velocity control
+
+    const double center_tolerance = 0.001;  // radians - stop when centered within this error
+    const double min_position = 0.0;   // Fully closed
+    const double max_position = 0.04;  // Fully open
+    
+    // Get current gripper positions
+    double gripper1_position = 0.0;
+    double gripper2_position = 0.0;
+    
+    // State interfaces: num_joints for positions + 2 for finger positions
+    if (state_interfaces_.size() > static_cast<size_t>(num_joints)) {
+      gripper1_position = state_interfaces_[num_joints].get_value();
+    }
+    if (state_interfaces_.size() > static_cast<size_t>(num_joints + 1)) {
+      gripper2_position = state_interfaces_[num_joints + 1].get_value();
+    }
+    
+    // Calculate the current opening width (both fingers move together 0-0.04)
+    // For centering, both fingers should be at the same position
+    double current_width = (gripper1_position + gripper2_position) / 2.0;  // Average position = opening amount
+    double current_center = (gripper1_position - gripper2_position);  // Difference should be 0 for centered
+    
+    // Calculate errors
+    double width_error = target_gripper_width_ - current_width;
+    double center_error = gripper1_position - gripper2_position;  // We want center_error = 0 (fingers symmetric)
+    
+    // Calculate desired position for both fingers
+    // For a centered grip, both fingers should be at target_width
+    double desired_position = target_gripper_width_;
+    
+    // Calculate individual position errors
+    double error_1 = desired_position - gripper1_position;
+    double error_2 = desired_position - gripper2_position;
+    
+    // Calculate velocity commands using P-controller
+    double velocity_command_1 = 0.0;
+    double velocity_command_2 = 0.0;
+    
+    // Only apply control if we have a target or not at desired position/centered
+    if (has_new_gripper_target_ || 
+        std::abs(width_error) > center_tolerance || 
+        std::abs(center_error) > center_tolerance) {
       
-      if (command_interfaces_.size() > 7) {
-          command_interfaces_[7].set_value(target_gripper_width_);  
+      // P-controller: velocity = kp * error
+      velocity_command_1 = kp_gripper * error_1 - 0.5*kp_gripper * error_2;
+      velocity_command_2 = kp_gripper * error_2 - 0.5*kp_gripper * error_1;
+      
+      // Prevent moving beyond limits
+      if ((gripper1_position <= min_position && velocity_command_1 < 0) ||
+          (gripper1_position >= max_position && velocity_command_1 > 0)) {
+        velocity_command_1 = 0.0;
+      }
+      if ((gripper2_position <= min_position && velocity_command_2 < 0) ||
+          (gripper2_position >= max_position && velocity_command_2 > 0)) {
+        velocity_command_2 = 0.0;
       }
       
-      RCLCPP_INFO(get_node()->get_logger(), "Setting new gripper width");
-      has_new_gripper_target_ = false;
-  }
+      // Stop individual fingers if within tolerance
+      if (std::abs(error_1) < center_tolerance) {
+        velocity_command_1 = 0.0;
+      }
+      if (std::abs(error_2) < center_tolerance) {
+        velocity_command_2 = 0.0;
+      }
+    }
+    
+    // Apply velocity to finger joints
+    if (command_interfaces_.size() > static_cast<size_t>(num_joints)) {
+      command_interfaces_[num_joints].set_value(velocity_command_1);  // finger_joint1
+    }
+    if (command_interfaces_.size() > static_cast<size_t>(num_joints + 1)) {
+      command_interfaces_[num_joints + 1].set_value(velocity_command_2);  // finger_joint2
+    }
 
+    RCLCPP_INFO(get_node()->get_logger(), "Sending velocities: (%.4f, %.4f)", velocity_command_1, velocity_command_2);
+
+    
+    // Clear the new target flag when at desired width and centered
+    if (std::abs(width_error) < center_tolerance && 
+        std::abs(center_error) < center_tolerance) {
+      has_new_gripper_target_ = false;
+    }
+    
+  }
+  
   return controller_interface::return_type::OK;
 }
 
@@ -114,23 +205,23 @@ void JointVelocityExampleController::gripperCallback(
     const std_msgs::msg::Float64::SharedPtr msg) {
   
   // Franka Hand gripper width range is 0.0 to 0.08 meters
-  if (msg->data < 0.0 || msg->data > 0.03) {
+  if (msg->data < 0.0 || msg->data > 0.04) {
     RCLCPP_WARN(get_node()->get_logger(), 
-                "Gripper width %.3f out of range [0.0, 0.03]. Clamping.", 
+                "Gripper width %.3f out of range [0.0, 0.04]. Clamping.", 
                 msg->data);
   }
   
   std::lock_guard<std::mutex> lock(target_mutex_);
   
-  target_gripper_width_ = std::clamp(msg->data, 0.0, 0.03);
+  target_gripper_width_ = std::clamp(msg->data, 0.0, 0.04);
   has_new_gripper_target_ = true;
   
-  RCLCPP_INFO(get_node()->get_logger(), "Received new gripper width: %.4f m", target_gripper_width_);
+  //RCLCPP_INFO(get_node()->get_logger(), "Received new gripper width: %.4f m", target_gripper_width_);
 }
 
 CallbackReturn JointVelocityExampleController::on_init() {
   try {
-    auto_declare<bool>("gazebo", false);
+    auto_declare<bool>("gazebo", true);
     auto_declare<std::string>("robot_description", "");
   } catch (const std::exception& e) {
     fprintf(stderr, "Exception thrown during init stage with message: %s \n", e.what());
