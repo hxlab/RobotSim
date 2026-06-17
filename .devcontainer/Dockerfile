@@ -133,8 +133,18 @@ RUN sudo chown -R $USERNAME:$USERNAME /ros2_ws \
     && rm -rf src \
     && mkdir -p src
 
-COPY ./franka_entrypoint.sh /franka_entrypoint.sh
-RUN sudo chmod +x /franka_entrypoint.sh
+# Clone libfranka
+RUN mkdir ~/source_code    
+RUN cd ~/source_code && git clone https://github.com/frankaemika/libfranka.git \
+    && cd libfranka \
+    && git switch fr3-develop \
+    && git submodule init \
+    && git submodule update \
+    && mkdir build && cd build \
+    && cmake -DBUILD_EXAMPLES=OFF -DBUILD_TESTS=OFF  .. \
+    && make franka -j$(nproc) \
+    && cpack -G DEB \
+    && sudo dpkg -i libfranka*.deb
 
 # Set the default shell to bash and the workdir to the source directory
 SHELL [ "/bin/bash", "-c" ]
