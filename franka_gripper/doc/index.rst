@@ -42,7 +42,7 @@ Changes from franka_ros
 -----------------------
 
 * All topics and actions were previously prefixed with ``franka_gripper``. This prefix was renamed to ``panda_gripper``
-  to enable, in the future, a workflow where all prefixes are based on the ``arm_id``
+  to enable, in the future, a workflow where all prefixes are based on the ``robot_type``
   to effortlessly enable multi arm setups.
 
 * The ``stop`` action is now a service action as it is not preemptable.

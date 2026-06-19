@@ -2,10 +2,10 @@ franka_hardware
 ===============
 
 .. important::
-    Breaking changes as of 0.1.14 release: ``franka_hardware`` robot_state and robot_model will be prefixed by the ``arm_id``.
+    Breaking changes as of 0.1.14 release: ``franka_hardware`` robot_state and robot_model will be prefixed by the ``robot_type``.
 
-        - ``panda/robot_model  -> ${arm_id}/robot_model``
-        - ``panda/robot_state  -> ${arm_id}/robot_state``
+        - ``panda/robot_model  -> ${robot_type}/robot_model``
+        - ``panda/robot_state  -> ${robot_type}/robot_state``
 
     There is no change with the state and command interfaces naming. They are prefixed with the joint names in the URDF.
 

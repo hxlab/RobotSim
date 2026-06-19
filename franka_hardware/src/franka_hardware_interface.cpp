@@ -32,17 +32,9 @@
 
 const std::string kVersionName = "version";
 const std::string kRobotIpName = "robot_ip";
-const std::string kArmIdName = "arm_id";
+const std::string kArmIdName = "robot_type";
 
 namespace {
-
-auto logRclcppFatalRed(const rclcpp::Logger& logger, const char* text, ...) {
-  va_list args;
-  va_start(args, text);
-  std::string formatted_text = fmt::format("\033[1;31m{}\033[0m", text);
-  RCLCPP_FATAL(logger, formatted_text.c_str(), args);
-  va_end(args);
-}
 
 auto parseVersion(const std::string& version_str) {
   std::vector<std::string> version_parts;
@@ -69,10 +61,10 @@ using StateInterface = hardware_interface::StateInterface;
 using CommandInterface = hardware_interface::CommandInterface;
 
 FrankaHardwareInterface::FrankaHardwareInterface(const std::shared_ptr<Robot>& robot,
-                                                 const std::string& arm_id)
+                                                 const std::string& robot_type)
     : FrankaHardwareInterface() {
   robot_ = robot;  // NOLINT(cppcoreguidelines-prefer-member-initializer)
-  arm_id_ = arm_id;
+  robot_type_ = robot_type;
 }
 
 FrankaHardwareInterface::FrankaHardwareInterface()
@@ -102,27 +94,28 @@ std::vector<StateInterface> FrankaHardwareInterface::export_state_interfaces() {
   }
 
   state_interfaces.emplace_back(StateInterface(
-      arm_id_, k_robot_state_interface_name,
+      prefix_ + robot_type_, k_robot_state_interface_name,
       reinterpret_cast<double*>(  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
           &hw_franka_robot_state_addr_)));
   state_interfaces.emplace_back(StateInterface(
-      arm_id_, k_robot_model_interface_name,
+      prefix_ + robot_type_, k_robot_model_interface_name,
       reinterpret_cast<double*>(  // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
           &hw_franka_model_ptr_)));
 
   // cartesian pose state interface 16 element pose matrix
   for (auto i = 0U; i < 16; i++) {
-    state_interfaces.emplace_back(StateInterface(std::to_string(i), k_HW_IF_CARTESIAN_POSE_STATE,
-                                                 &cartesian_pose_state_.at(i)));
+    state_interfaces.emplace_back(StateInterface(
+        prefix_ + std::to_string(i), k_HW_IF_CARTESIAN_POSE_STATE, &cartesian_pose_state_.at(i)));
   }
 
   // elbow state interface
   for (auto i = 0U; i < elbow_state_names_.size(); i++) {
-    state_interfaces.emplace_back(
-        StateInterface(elbow_state_names_.at(i), k_HW_IF_ELBOW_STATE, &elbow_state_.at(i)));
+    state_interfaces.emplace_back(StateInterface(prefix_ + elbow_state_names_.at(i),
+                                                 k_HW_IF_ELBOW_STATE, &elbow_state_.at(i)));
   }
 
-  state_interfaces.emplace_back(StateInterface(arm_id_, "robot_time", &robot_time_state_));
+  state_interfaces.emplace_back(
+      StateInterface(prefix_ + robot_type_, "robot_time", &robot_time_state_));
 
   return state_interfaces;
 }
@@ -164,42 +157,67 @@ std::vector<CommandInterface> FrankaHardwareInterface::export_command_interfaces
 
 CallbackReturn FrankaHardwareInterface::on_activate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
-  read(rclcpp::Time(0),
-       rclcpp::Duration(0, 0));  // makes sure that the robot state is properly initialized.
-  RCLCPP_INFO(getLogger(), "Started");
+  active_mode_ = ControlInterface::None;
+  needs_initial_command_ = true;
+  hw_franka_model_ptr_ = nullptr;
+
+  read(rclcpp::Time(0), rclcpp::Duration(0, 0));
   return CallbackReturn::SUCCESS;
+}
+
+FrankaHardwareInterface::~FrankaHardwareInterface() {
+  // Ensure executor is fully stopped and nodes are removed before members are destroyed.
+  // This prevents races where executor worker threads are still running callbacks
+  // that reference nodes or robot_ during destruction.
+  if (executor_) {
+    if (action_node_) {
+      executor_->remove_node(action_node_);
+    }
+    if (service_node_) {
+      executor_->remove_node(service_node_);
+    }
+    executor_.reset();
+  }
+  action_node_.reset();
+  service_node_.reset();
 }
 
 CallbackReturn FrankaHardwareInterface::on_deactivate(
     const rclcpp_lifecycle::State& /*previous_state*/) {
   RCLCPP_INFO(getLogger(), "trying to Stop...");
   robot_->stopRobot();
-  RCLCPP_INFO(getLogger(), "Stopped");
+
+  active_mode_ = ControlInterface::None;
+  needs_initial_command_ = true;
   return CallbackReturn::SUCCESS;
 }
 
-template <typename CommandType>
-void initializeCommand(bool& first_update,
-                       const bool& interface_running,
-                       CommandType& hw_command,
-                       const CommandType& new_command) {
-  if (first_update && interface_running) {
-    hw_command = new_command;
-    first_update = false;
-  }
-}
-
 void FrankaHardwareInterface::initializePositionCommands(const franka::RobotState& robot_state) {
-  auto mapped_elbow = std::vector<double>{robot_state.elbow.begin(), robot_state.elbow.end()};
-  initializeCommand(first_elbow_update_, elbow_command_interface_running_, hw_elbow_command_,
-                    mapped_elbow);
-  auto mapped_position = std::vector<double>{robot_state.q.begin(), robot_state.q.end()};
-  initializeCommand(first_position_update_, position_joint_interface_running_,
-                    hw_position_commands_, mapped_position);
-  auto mapped_cartesian_pose =
-      std::vector<double>{robot_state.O_T_EE.begin(), robot_state.O_T_EE.end()};
-  initializeCommand(first_cartesian_pose_update_, pose_cartesian_interface_running_,
-                    hw_cartesian_pose_commands_, mapped_cartesian_pose);
+  if (!needs_initial_command_ || active_mode_ == ControlInterface::None) {
+    return;
+  }
+
+  switch (active_mode_) {
+    case ControlInterface::JointPosition:
+      std::copy(robot_state.q.begin(), robot_state.q.end(), hw_position_commands_.begin());
+      break;
+    case ControlInterface::CartesianPose:
+      std::copy(robot_state.O_T_EE.begin(), robot_state.O_T_EE.end(),
+                hw_cartesian_pose_commands_.begin());
+      break;
+    case ControlInterface::CartesianPoseWithElbow:
+      std::copy(robot_state.O_T_EE.begin(), robot_state.O_T_EE.end(),
+                hw_cartesian_pose_commands_.begin());
+      std::copy(robot_state.elbow.begin(), robot_state.elbow.end(), hw_elbow_command_.begin());
+      break;
+    case ControlInterface::CartesianVelocityWithElbow:
+      std::copy(robot_state.elbow.begin(), robot_state.elbow.end(), hw_elbow_command_.begin());
+      break;
+    default:
+      break;
+  }
+
+  needs_initial_command_ = false;
 }
 
 hardware_interface::return_type FrankaHardwareInterface::read(const rclcpp::Time& /*time*/,
@@ -207,9 +225,20 @@ hardware_interface::return_type FrankaHardwareInterface::read(const rclcpp::Time
   if (hw_franka_model_ptr_ == nullptr) {
     hw_franka_model_ptr_ = robot_->getModel();
   }
-  hw_franka_robot_state_ = robot_->readOnce();
-  robot_time_state_ = hw_franka_robot_state_.time.toSec();
-  initializePositionCommands(hw_franka_robot_state_);
+
+  franka::RobotState robot_state;
+  try {
+    // Write new state into the RealtimeBuffer for thread-safe access by consumers
+    robot_state = robot_->readOnce();
+  } catch (const franka::ControlException& e) {
+    RCLCPP_ERROR(getLogger(), "%s", e.what());
+    robot_->stopRobot();
+    return hardware_interface::return_type::ERROR;
+  }
+
+  hw_franka_robot_state_ = robot_state;
+  robot_time_state_ = robot_state.time.toSec();
+  initializePositionCommands(robot_state);
 
   hw_positions_ = hw_franka_robot_state_.q;
   hw_velocities_ = hw_franka_robot_state_.dq;
@@ -234,28 +263,42 @@ hardware_interface::return_type FrankaHardwareInterface::write(const rclcpp::Tim
     return hardware_interface::return_type::ERROR;
   }
 
-  if (velocity_joint_interface_running_) {
-    robot_->writeOnce(hw_velocity_commands_);
-  } else if (effort_interface_running_) {
-    robot_->writeOnce(hw_effort_commands_);
-  } else if (position_joint_interface_running_ && !first_position_update_) {
-    robot_->writeOnce(hw_position_commands_);
-  } else if (velocity_cartesian_interface_running_ && elbow_command_interface_running_ &&
-             !first_elbow_update_) {
-    // Wait until the first read pass after robot controller is activated to write the elbow
-    // command to the robot
-    robot_->writeOnce(hw_cartesian_velocities_, hw_elbow_command_);
-  } else if (pose_cartesian_interface_running_ && elbow_command_interface_running_ &&
-             !first_cartesian_pose_update_ && !first_elbow_update_) {
-    // Wait until the first read pass after robot controller is activated to write the elbow
-    // command to the robot
-    robot_->writeOnce(hw_cartesian_pose_commands_, hw_elbow_command_);
-  } else if (pose_cartesian_interface_running_ && !first_cartesian_pose_update_) {
-    // Wait until the first read pass after robot controller is activated to write the cartesian
-    // pose
-    robot_->writeOnce(hw_cartesian_pose_commands_);
-  } else if (velocity_cartesian_interface_running_ && !elbow_command_interface_running_) {
-    robot_->writeOnce(hw_cartesian_velocities_);
+  if (needs_initial_command_) {
+    return hardware_interface::return_type::OK;
+  }
+
+  try {
+    switch (active_mode_) {
+      case ControlInterface::Effort:
+        robot_->writeOnce(hw_effort_commands_);
+        break;
+      case ControlInterface::JointVelocity:
+        robot_->writeOnce(hw_velocity_commands_);
+        break;
+      case ControlInterface::JointPosition:
+        robot_->writeOnce(hw_position_commands_);
+        break;
+      case ControlInterface::CartesianVelocity:
+        robot_->writeOnce(hw_cartesian_velocities_);
+        break;
+      case ControlInterface::CartesianVelocityWithElbow:
+        robot_->writeOnce(hw_cartesian_velocities_, hw_elbow_command_);
+        break;
+      case ControlInterface::CartesianPose:
+        robot_->writeOnce(hw_cartesian_pose_commands_);
+        break;
+      case ControlInterface::CartesianPoseWithElbow:
+        robot_->writeOnce(hw_cartesian_pose_commands_, hw_elbow_command_);
+        break;
+      case ControlInterface::None:
+        break;
+    }
+  } catch (const std::runtime_error& e) {
+    // Transient race during mode switch — the RT write() can overlap with
+    // perform_command_mode_switch on the non-RT thread.  Warn instead of
+    // returning ERROR so the controller_manager does not cascade-deactivate
+    // all hardware and controllers.
+    RCLCPP_WARN(getLogger(), "Write skipped during mode switch: %s", e.what());
   }
 
   return hardware_interface::return_type::OK;
@@ -287,48 +330,53 @@ CallbackReturn FrankaHardwareInterface::on_init(const hardware_interface::Hardwa
                 patch);
 
     if (kSupportedControlInterfaceMajor != major) {
-      logRclcppFatalRed(
-          getLogger(),
-          "Unsupported major version of the Franka ros2_control interface. Expected "
-          "major version %d, got %d. Please update your URDF (aka franka_description).",
-          kSupportedControlInterfaceMajor, major);
+      RCLCPP_FATAL(getLogger(),
+                   "Unsupported major version of the Franka ros2_control interface. Expected "
+                   "major version %d, got %d. Please update your URDF (aka franka_description).",
+                   kSupportedControlInterfaceMajor, major);
       return CallbackReturn::ERROR;
     }
   } catch (const std::out_of_range& ex) {
     std::cout << "Parameter 'version' is not set. Please update your URDF (aka franka_description)."
               << std::endl;
-    logRclcppFatalRed(
-        getLogger(), "Parameter '%s' is not set. Please update your URDF (aka franka_description).",
-        kVersionName.c_str());
+    RCLCPP_FATAL(getLogger(),
+                 "Parameter '%s' is not set. Please update your URDF (aka franka_description).",
+                 kVersionName.c_str());
     return CallbackReturn::ERROR;
   }
 
-  std::string robot_ip;
   try {
-    robot_ip = info_.hardware_parameters.at(kRobotIpName);
+    robot_ip_ = info_.hardware_parameters.at(kRobotIpName);
   } catch (const std::out_of_range& ex) {
-    logRclcppFatalRed(getLogger(), "Parameter '%s' is not set", kRobotIpName.c_str());
+    RCLCPP_FATAL(getLogger(), "Parameter '%s' is not set", kRobotIpName.c_str());
     return CallbackReturn::ERROR;
   }
 
   try {
-    arm_id_ = info_.hardware_parameters.at(kArmIdName);
+    robot_type_ = info_.hardware_parameters.at(kArmIdName);
   } catch (const std::out_of_range& ex) {
     RCLCPP_WARN(getLogger(), "Parameter '%s' is not set.", kArmIdName.c_str());
     RCLCPP_WARN(getLogger(),
-                "Deprecation Warning: In the next release, 'arm_id' should be set in the URDF. "
-                "Using 'panda' as default 'arm_id' will not be supported."
+                "Deprecation Warning: In the next release, 'robot_type' should be set in the URDF. "
+                "Using 'panda' as default 'robot_type' will not be supported."
                 "Please use the latest franka_description package from: "
                 "https://github.com/frankarobotics/franka_description");
   }
 
+  try {
+    prefix_ = info_.hardware_parameters.at("prefix");
+  } catch (const std::out_of_range& ex) {
+    RCLCPP_INFO(getLogger(), "Parameter 'prefix' is not set. Using empty prefix.");
+    prefix_ = "";
+  }
+
   if (!robot_) {
     try {
-      RCLCPP_INFO(getLogger(), "Connecting to robot at \"%s\" ...", robot_ip.c_str());
-      robot_ = std::make_shared<Robot>(robot_ip, getLogger());
+      RCLCPP_INFO(getLogger(), "Connecting to robot at \"%s\" ...", robot_ip_.c_str());
+      robot_ = std::make_shared<Robot>(robot_ip_, getLogger());
     } catch (const franka::Exception& e) {
-      logRclcppFatalRed(getLogger(), "Could not connect to robot");
-      logRclcppFatalRed(getLogger(), fmt::format("{}", e.what()).c_str());
+      RCLCPP_FATAL(getLogger(), "Could not connect to robot");
+      RCLCPP_FATAL(getLogger(), "%s", fmt::format("{}", e.what()).c_str());
       return CallbackReturn::ERROR;
     }
     RCLCPP_INFO(getLogger(), "Successfully connected to robot");
@@ -351,76 +399,6 @@ rclcpp::Logger FrankaHardwareInterface::getLogger() {
 hardware_interface::return_type FrankaHardwareInterface::perform_command_mode_switch(
     const std::vector<std::string>& /*start_interfaces*/,
     const std::vector<std::string>& /*stop_interfaces*/) {
-  if (!effort_interface_running_ && effort_interface_claimed_) {
-    std::fill(hw_effort_commands_.begin(), hw_effort_commands_.end(), 0);
-    robot_->stopRobot();
-    robot_->initializeTorqueInterface();
-    effort_interface_running_ = true;
-  } else if (effort_interface_running_ && !effort_interface_claimed_) {
-    robot_->stopRobot();
-    effort_interface_running_ = false;
-  }
-
-  if (!velocity_joint_interface_running_ && velocity_joint_interface_claimed_) {
-    std::fill(hw_velocity_commands_.begin(), hw_velocity_commands_.end(), 0);
-    robot_->stopRobot();
-    robot_->initializeJointVelocityInterface();
-    velocity_joint_interface_running_ = true;
-  } else if (velocity_joint_interface_running_ && !velocity_joint_interface_claimed_) {
-    robot_->stopRobot();
-    velocity_joint_interface_running_ = false;
-  }
-
-  if (!position_joint_interface_running_ && position_joint_interface_claimed_) {
-    robot_->stopRobot();
-    robot_->initializeJointPositionInterface();
-    position_joint_interface_running_ = true;
-    first_position_update_ = true;
-  } else if (position_joint_interface_running_ && !position_joint_interface_claimed_) {
-    robot_->stopRobot();
-    position_joint_interface_running_ = false;
-  }
-
-  if (!velocity_cartesian_interface_running_ && velocity_cartesian_interface_claimed_) {
-    std::fill(hw_cartesian_velocities_.begin(), hw_cartesian_velocities_.end(), 0);
-    robot_->stopRobot();
-    robot_->initializeCartesianVelocityInterface();
-    if (!elbow_command_interface_running_ && elbow_command_interface_claimed_) {
-      elbow_command_interface_running_ = true;
-      first_elbow_update_ = true;
-    }
-    velocity_cartesian_interface_running_ = true;
-  } else if (velocity_cartesian_interface_running_ && !velocity_cartesian_interface_claimed_) {
-    robot_->stopRobot();
-    // Elbow command interface can't be commanded without cartesian velocity or pose interface
-    if (elbow_command_interface_running_) {
-      elbow_command_interface_running_ = false;
-      elbow_command_interface_claimed_ = false;
-    }
-    velocity_cartesian_interface_running_ = false;
-  }
-
-  if (!pose_cartesian_interface_running_ && pose_cartesian_interface_claimed_) {
-    robot_->stopRobot();
-    robot_->initializeCartesianPoseInterface();
-    if (!elbow_command_interface_running_ && elbow_command_interface_claimed_) {
-      elbow_command_interface_running_ = true;
-      first_elbow_update_ = true;
-    }
-    pose_cartesian_interface_running_ = true;
-    initial_robot_state_update_ = true;
-    first_cartesian_pose_update_ = true;
-  } else if (pose_cartesian_interface_running_ && !pose_cartesian_interface_claimed_) {
-    robot_->stopRobot();
-    // Elbow command interface can't be commanded without cartesian pose or pose interface
-    if (elbow_command_interface_running_) {
-      elbow_command_interface_running_ = false;
-      elbow_command_interface_claimed_ = false;
-    }
-    pose_cartesian_interface_running_ = false;
-  }
-
-  // check if the elbow command is activated without cartesian command interface
   if (elbow_command_interface_claimed_ &&
       !(velocity_cartesian_interface_claimed_ || pose_cartesian_interface_claimed_)) {
     RCLCPP_FATAL(getLogger(),
@@ -428,6 +406,73 @@ hardware_interface::return_type FrankaHardwareInterface::perform_command_mode_sw
     return hardware_interface::return_type::ERROR;
   }
 
+  ControlInterface desired = ControlInterface::None;
+
+  if (effort_interface_claimed_) {
+    desired = ControlInterface::Effort;
+  } else if (velocity_joint_interface_claimed_) {
+    desired = ControlInterface::JointVelocity;
+  } else if (position_joint_interface_claimed_) {
+    desired = ControlInterface::JointPosition;
+  } else if (pose_cartesian_interface_claimed_ && elbow_command_interface_claimed_) {
+    desired = ControlInterface::CartesianPoseWithElbow;
+  } else if (pose_cartesian_interface_claimed_) {
+    desired = ControlInterface::CartesianPose;
+  } else if (velocity_cartesian_interface_claimed_ && elbow_command_interface_claimed_) {
+    desired = ControlInterface::CartesianVelocityWithElbow;
+  } else if (velocity_cartesian_interface_claimed_) {
+    desired = ControlInterface::CartesianVelocity;
+  }
+
+  if (desired == active_mode_) {
+    return hardware_interface::return_type::OK;
+  }
+
+  // Set mode to None BEFORE stopping, so that a concurrent write() from the
+  // RT thread sees ControlInterface::None and skips the writeOnce() call.
+  active_mode_ = ControlInterface::None;
+  needs_initial_command_ = true;
+  robot_->stopRobot();
+
+  switch (desired) {
+    case ControlInterface::Effort:
+      std::fill(hw_effort_commands_.begin(), hw_effort_commands_.end(), 0);
+      robot_->initializeTorqueInterface();
+      needs_initial_command_ = false;
+      break;
+    case ControlInterface::JointVelocity:
+      std::fill(hw_velocity_commands_.begin(), hw_velocity_commands_.end(), 0);
+      robot_->initializeJointVelocityInterface();
+      needs_initial_command_ = false;
+      break;
+    case ControlInterface::JointPosition:
+      robot_->initializeJointPositionInterface();
+      needs_initial_command_ = true;
+      break;
+    case ControlInterface::CartesianVelocity:
+      std::fill(hw_cartesian_velocities_.begin(), hw_cartesian_velocities_.end(), 0);
+      robot_->initializeCartesianVelocityInterface();
+      needs_initial_command_ = false;
+      break;
+    case ControlInterface::CartesianVelocityWithElbow:
+      std::fill(hw_cartesian_velocities_.begin(), hw_cartesian_velocities_.end(), 0);
+      robot_->initializeCartesianVelocityInterface();
+      needs_initial_command_ = true;
+      break;
+    case ControlInterface::CartesianPose:
+      robot_->initializeCartesianPoseInterface();
+      needs_initial_command_ = true;
+      break;
+    case ControlInterface::CartesianPoseWithElbow:
+      robot_->initializeCartesianPoseInterface();
+      needs_initial_command_ = true;
+      break;
+    case ControlInterface::None:
+      needs_initial_command_ = true;
+      break;
+  }
+
+  active_mode_ = desired;
   return hardware_interface::return_type::OK;
 }
 

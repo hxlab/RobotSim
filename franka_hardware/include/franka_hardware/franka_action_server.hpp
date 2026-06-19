@@ -14,12 +14,13 @@
 
 #pragma once
 
+#include <future>
 #include <memory>
 
-#include "franka/exception.h"
-#include "franka_hardware/robot.hpp"
-
 #include <franka_msgs/action/error_recovery.hpp>
+#include "franka/exception.h"
+#include "franka_hardware/actions_helper/ptp_motion_handler.hpp"
+#include "franka_hardware/robot.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
@@ -40,9 +41,13 @@ class ActionServer : public rclcpp::Node {
   ActionServer(const rclcpp::NodeOptions& options, std::shared_ptr<Robot> robot);
 
  private:
+  PTPMotionHandler ptp_motion_handler_;
   std::shared_ptr<Robot> robot_;
   rclcpp_action::Server<franka_msgs::action::ErrorRecovery>::SharedPtr
       error_recovery_action_server_;
+  rclcpp_action::Server<franka_msgs::action::PTPMotion>::SharedPtr ptp_motion_action_server_;
+
+  std::mutex motion_id_mutex_;
 
   /**
    * @brief Callback function for the error recovery action server
@@ -51,6 +56,15 @@ class ActionServer : public rclcpp::Node {
    */
   auto errorRecoveryAction(
       const std::shared_ptr<rclcpp_action::ServerGoalHandle<franka_msgs::action::ErrorRecovery>>&
+          goal_handle) -> void;
+
+  /**
+   * @brief Callback function for the PTP motion action server
+   *
+   * @param goal_handle The goal handle for the PTP motion action
+   */
+  auto ptpMotionAction(
+      const std::shared_ptr<rclcpp_action::ServerGoalHandle<franka_msgs::action::PTPMotion>>&
           goal_handle) -> void;
 };
 

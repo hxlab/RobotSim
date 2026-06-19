@@ -20,9 +20,9 @@ This controller moves the robot to its home configuration.
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=move_to_start_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=move_to_start_example_controller
 
-.. _gravity_example:
+.. _gravity_example_humble:
 
 Gravity Compensation
 ^^^^^^^^^^^^^^^^^^^^
@@ -32,7 +32,7 @@ It sends zero as torque command to all joints, which means that the robot only c
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=gravity_compensation_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=gravity_compensation_example_controller
 
 Gripper Example
 ^^^^^^^^^^^^^^^
@@ -42,7 +42,7 @@ failed based on the object's size and the defined tolerances.
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=gripper_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=gripper_example_controller
 
 
 Joint Impedance Example
@@ -53,7 +53,7 @@ joints while it is running.
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=joint_impedance_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=joint_impedance_example_controller
 
 Joint Impedance With IK Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -74,7 +74,7 @@ Joint4 body jacobian and end-effector jacobian with respect to the base frame.
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=model_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=model_example_controller
 
 Joint Position Example
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -82,7 +82,7 @@ This example sends periodic position commands to the robot.
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=joint_position_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=joint_position_example_controller
 
 Joint Velocity Example
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -90,7 +90,7 @@ This example sends periodic velocity commands to the 4th and 5th joint of the ro
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=joint_velocity_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=joint_velocity_example_controller
 
 Cartesian Pose Example
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -98,7 +98,7 @@ This example uses the CartesianPose interface to send periodic pose commands to 
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=cartesian_pose_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=cartesian_pose_example_controller
 
 Cartesian Orientation Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -106,7 +106,7 @@ This example uses CartesianOrientation interface to send periodic orientation co
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=cartesian_orientation_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=cartesian_orientation_example_controller
 
 Cartesian Pose Elbow Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -114,7 +114,7 @@ This example sends periodic elbow commands while keeping the end effector pose c
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=cartesian_elbow_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=cartesian_elbow_example_controller
 
 Cartesian Velocity Example
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -122,7 +122,7 @@ This example uses the CartesianVelocity interface to send periodic velocity comm
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=cartesian_velocity_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=cartesian_velocity_example_controller
 
 Cartesian Elbow Example
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -130,10 +130,21 @@ This example uses the CartesianElbow interface to send periodic elbow commands t
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=elbow_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=elbow_example_controller
+
+Mobile Cartesian Velocity Example
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This controller subscribes to a topic that publishes cartesian velocities and forwards them to the
+robot after going through a rate limiter.
+
+.. code-block:: shell
+
+    ros2 launch franka_bringup example.launch.py controller_names:=mobile_cartesian_velocity_example_controller
+
 
 Writing Custom Controllers
----------------------------
+--------------------------
 
 Compared to ``franka_ros`` we currently offer a reduced set of controller interfaces:
 
@@ -152,7 +163,7 @@ Compared to ``franka_ros`` we currently offer a reduced set of controller interf
     They are stored in the state_interface as double pointers and casted back to their original objects inside the franka_semantic_component class.
 
     Example of using franka_model can be found in the franka_example_controllers package:
-    `model_example_controller <https://github.com/frankarobotics/franka_ros2/blob/jazzy/franka_example_controllers/src/model_example_controller.cpp>`_.
+    `model_example_controller <https://github.com/frankarobotics/franka_ros2/blob/jazzy/franka_example_controllers/src/fr3/model_example_controller.cpp>`_.
 
 
 You can base your own controller on one of the example controllers in this package. To compute kinematic

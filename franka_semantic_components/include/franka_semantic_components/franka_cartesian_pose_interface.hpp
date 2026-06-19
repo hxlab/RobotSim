@@ -39,9 +39,11 @@ class FrankaCartesianPoseInterface
    *
    * @param[in] command_elbow_active insert true to activate the elbow commanding together with the
    * cartesian velocity input, otherwise the elbow commanding is not allowed.
+   * @param[in] arm_prefix prefix prepended to the robot hardware interfaces.
    *
    */
   explicit FrankaCartesianPoseInterface(bool command_elbow_activate);
+  FrankaCartesianPoseInterface(const std::string& arm_prefix, bool command_elbow_active);
   FrankaCartesianPoseInterface(const FrankaCartesianPoseInterface&) = delete;
   FrankaCartesianPoseInterface& operator=(const FrankaCartesianPoseInterface& other) = delete;
   FrankaCartesianPoseInterface& operator=(FrankaCartesianPoseInterface&& other) = delete;
@@ -143,7 +145,6 @@ class FrankaCartesianPoseInterface
    */
   std::array<double, 16> getCurrentPoseMatrix();
 
- private:
   /**
    * @brief returns the column major transformation matrix from the given quaternion and translation
    *
@@ -151,9 +152,11 @@ class FrankaCartesianPoseInterface
    * @param translation translation represented in Vector3d format [x,y,z]
    * @return std::vector<double> column major transformation matrix [4x4]
    */
-  std::vector<double> createColumnMajorTransformationMatrix(const Eigen::Quaterniond& quaternion,
-                                                            const Eigen::Vector3d& translation);
+  static std::vector<double> createColumnMajorTransformationMatrix(
+      const Eigen::Quaterniond& quaternion,
+      const Eigen::Vector3d& translation);
 
+ private:
   const std::array<std::string, 2> hw_elbow_names_{"joint_3_position", "joint_4_sign"};
   const std::array<std::string, 2> elbow_state_names_{"joint_3_position", "joint_4_sign"};
 

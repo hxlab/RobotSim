@@ -201,7 +201,7 @@ class FrankaRobotModel
   franka_hardware::Model* robot_model_;
   franka::RobotState* robot_state_;
 
-  std::string arm_id_;
+  std::string robot_type_;
 
   std::string franka_state_interface_name_;
   std::string franka_model_interface_name_;

@@ -40,15 +40,27 @@ using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface
 
 namespace franka_hardware {
 
+enum class ControlInterface {
+  None,
+  Effort,
+  JointVelocity,
+  JointPosition,
+  CartesianVelocity,
+  CartesianVelocityWithElbow,
+  CartesianPose,
+  CartesianPoseWithElbow
+};
+
 class FrankaHardwareInterface : public hardware_interface::SystemInterface {
  public:
-  explicit FrankaHardwareInterface(const std::shared_ptr<Robot>& robot, const std::string& arm_id);
+  explicit FrankaHardwareInterface(const std::shared_ptr<Robot>& robot,
+                                   const std::string& robot_type);
   FrankaHardwareInterface();
   FrankaHardwareInterface(const FrankaHardwareInterface&) = delete;
   FrankaHardwareInterface& operator=(const FrankaHardwareInterface& other) = delete;
   FrankaHardwareInterface& operator=(FrankaHardwareInterface&& other) = delete;
   FrankaHardwareInterface(FrankaHardwareInterface&& other) = delete;
-  ~FrankaHardwareInterface() override = default;
+  ~FrankaHardwareInterface() override;
 
   hardware_interface::return_type prepare_command_mode_switch(
       const std::vector<std::string>& start_interfaces,
@@ -77,13 +89,10 @@ class FrankaHardwareInterface : public hardware_interface::SystemInterface {
   void initializePositionCommands(const franka::RobotState& robot_state);
 
   // Support Franka ros2 control interface version
-  const int kSupportedControlInterfaceMajor = 0;
+  const int kSupportedControlInterfaceMajor = 1;
 
-  // Initialize joint position commands in the first pass
-  bool first_elbow_update_{true};
-  bool first_position_update_{true};
-  bool first_cartesian_pose_update_{true};
-  bool initial_robot_state_update_{true};
+  ControlInterface active_mode_{ControlInterface::None};
+  bool needs_initial_command_{true};
   double robot_time_state_{0.0};
 
   std::shared_ptr<Robot> robot_;
@@ -157,26 +166,17 @@ class FrankaHardwareInterface : public hardware_interface::SystemInterface {
   franka::Duration robot_time_;
 
   bool effort_interface_claimed_ = false;
-  bool effort_interface_running_ = false;
-
   bool velocity_joint_interface_claimed_ = false;
-  bool velocity_joint_interface_running_ = false;
-
   bool position_joint_interface_claimed_ = false;
-  bool position_joint_interface_running_ = false;
-
   bool velocity_cartesian_interface_claimed_ = false;
-  bool velocity_cartesian_interface_running_ = false;
-
   bool pose_cartesian_interface_claimed_ = false;
-  bool pose_cartesian_interface_running_ = false;
-
   bool elbow_command_interface_claimed_ = false;
-  bool elbow_command_interface_running_ = false;
 
   static rclcpp::Logger getLogger();
 
-  std::string arm_id_{"fr3"};
+  std::string robot_ip_;
+  std::string robot_type_{"fr3"};
+  std::string prefix_;
   const std::string k_robot_state_interface_name{"robot_state"};
   const std::string k_robot_model_interface_name{"robot_model"};
   const size_t max_number_start_interfaces = 45;

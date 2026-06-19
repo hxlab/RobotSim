@@ -1,16 +1,16 @@
-#  Copyright (c) 2025 Franka Robotics GmbH
+# Copyright 2026 Franka Robotics GmbH
 #
-#  Licensed under the Apache License, Version 2.0 (the "License");
-#  you may not use this file except in compliance with the License.
-#  You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
-#  Unless required by applicable law or agreed to in writing, software
-#  distributed under the License is distributed on an "AS IS" BASIS,
-#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  See the License for the specific language governing permissions and
-#  limitations under the License.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 ############################################################################
 # Parameters:
@@ -44,26 +44,30 @@
 #  controllers.yaml to avoid runtime errors.
 ############################################################################
 
-
-import os
 import sys
-from ament_index_python.packages import get_package_share_directory
+
+import franka_bringup.launch_utils as launch_utils
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
-# Add the path to the `utils` folder
-package_share = get_package_share_directory('franka_bringup')
-utils_path = os.path.join(package_share, '..', '..', 'lib', 'franka_bringup', 'utils')
-sys.path.append(os.path.abspath(utils_path))
+# constant for the controller name parameter
+CONTROLLER_EXAMPLE = 'controller'
 
-from launch_utils import load_yaml  # noqa: E402
+
+load_yaml = launch_utils.load_yaml
+get_parameter_for_config = launch_utils.get_parameter_for_config
 
 # Iterates over the uncommented lines in file specified by the robot_config_file parameter.
-# "Includes" franka.launch.py for each active (uncommented) Robot.
+# 'Includes' franka.launch.py for each active (uncommented) Robot.
 # That file is well documented.
 # The function also checks if the 'use_rviz' parameter is set to true in the YAML file.
 # If so, it includes a node for RViz to visualize the robot's state.
@@ -72,59 +76,120 @@ from launch_utils import load_yaml  # noqa: E402
 
 def generate_robot_nodes(context):
     config_file = LaunchConfiguration('robot_config_file').perform(context)
-    controller_name = LaunchConfiguration('controller_name').perform(context)
+    controller_names = LaunchConfiguration('controller_names').perform(context)
+    controller_names_vector = controller_names.split(',')
+    robot_ips = LaunchConfiguration('robot_ips').perform(context)
     configs = load_yaml(config_file)
     nodes = []
-    for item_name, config in configs.items():
-        namespace = config['namespace']
+    for index, (_, config) in enumerate(configs.items()):
+        namespace = config.get('namespace', '')
+
+        if robot_ips:
+            robot_ip = get_parameter_for_config(
+                robot_ips, num_configs=len(configs), config_index=index
+            )
+        else:
+            robot_ip = str(config['robot_ip'])
+
+        # Single robot configuration: use franka.launch.py
         nodes.append(
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource(
-                    PathJoinSubstitution([
-                        FindPackageShare('franka_bringup'), 'launch', 'franka.launch.py'
-                    ])
+                    PathJoinSubstitution(
+                        [
+                            FindPackageShare('franka_bringup'),
+                            'launch',
+                            'franka.launch.py',
+                        ]
+                    )
                 ),
                 launch_arguments={
-                    'arm_id': str(config['arm_id']),
+                    'robot_type': str(config['robot_type']),
                     'arm_prefix': str(config['arm_prefix']),
                     'namespace': str(namespace),
-                    'urdf_file': str(config['urdf_file']),
-                    'robot_ip': str(config['robot_ip']),
+                    'robot_ip': robot_ip,
                     'load_gripper': str(config['load_gripper']),
                     'use_fake_hardware': str(config['use_fake_hardware']),
-                    'fake_sensor_commands': str(config['fake_sensor_commands']),
+                    'fake_sensor_commands': str(
+                        config['fake_sensor_commands']
+                    ),
                     'joint_state_rate': str(config['joint_state_rate']),
                 }.items(),
             )
         )
-        nodes.append(
-            Node(
-                package='controller_manager',
-                executable='spawner',
-                namespace=namespace,
-                arguments=[controller_name, '--controller-manager-timeout', '30'],
-                parameters=[PathJoinSubstitution([
-                    FindPackageShare('franka_bringup'), 'config', "controllers.yaml",
 
-                ])],
-                output='screen',
-            )
+        # Determine which controller to use for this config
+        controller_name = get_parameter_for_config(
+            controller_names, num_configs=len(configs), config_index=index
         )
-    if any(str(config.get('use_rviz', 'false')).lower() == 'true' for config in configs.values()):
+        if not controller_name:
+            print(
+                'Error: No controller names provided. Please provide at least one controller name.'
+            )
+            sys.exit(1)
+
+        if CONTROLLER_EXAMPLE in controller_name:
+            # Spawn the example as ros2_control controller
+            controller_name = controller_names_vector[index]
+            nodes.append(
+                Node(
+                    package='controller_manager',
+                    executable='spawner',
+                    namespace=namespace,
+                    arguments=[
+                        controller_name,
+                        '--controller-manager-timeout',
+                        '30',
+                    ],
+                    parameters=[
+                        PathJoinSubstitution(
+                            [
+                                FindPackageShare('franka_bringup'),
+                                'config',
+                                'controllers.yaml',
+                            ]
+                        )
+                    ],
+                    output='screen',
+                )
+            )
+        else:
+            # Spawn the example as node
+            nodes.append(
+                Node(
+                    package='franka_example_controllers',
+                    executable=controller_name,
+                    namespace=namespace,
+                    output='screen',
+                )
+            )
+
+    if any(
+        str(config.get('use_rviz', 'false')).lower() == 'true'
+        for config in configs.values()
+    ):
         nodes.append(
             Node(
                 package='rviz2',
                 executable='rviz2',
                 name='rviz2',
-                arguments=['--display-config', PathJoinSubstitution([
-                    FindPackageShare('franka_description'), 'rviz', 'visualize_franka.rviz'
-                ])],
+                arguments=[
+                    '--display-config',
+                    PathJoinSubstitution(
+                        [
+                            FindPackageShare('franka_description'),
+                            'rviz',
+                            'visualize_franka.rviz',
+                        ]
+                    ),
+                ],
                 output='screen',
             )
         )
     return nodes
 
-# The generate_launch_description function is the entry point (like "main")
+
+# The generate_launch_description function is the entry point (like 'main')
 # It is called by the ROS 2 launch system when the launch file is executed.
 # via: ros2 launch franka_bringup example.launch.py ARGS...
 # This function must return a LaunchDescription object containing nodes to be launched.
@@ -132,17 +197,25 @@ def generate_robot_nodes(context):
 
 
 def generate_launch_description():
-    return LaunchDescription([
-        DeclareLaunchArgument(
-            'robot_config_file',
-            default_value=PathJoinSubstitution([
-                FindPackageShare('franka_bringup'), 'config', 'franka.config.yaml'
-            ]),
-            description='Path to the robot configuration file to load',
-        ),
-        DeclareLaunchArgument(
-            'controller_name',
-            description='Name of the controller to spawn (required, no default)',
-        ),
-        OpaqueFunction(function=generate_robot_nodes),
-    ])
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                'robot_config_file',
+                default_value=PathJoinSubstitution(
+                    [
+                        FindPackageShare('franka_bringup'),
+                        'config',
+                        'franka.config.yaml',
+                    ]
+                ),
+                description='Path to the robot configuration file to load',
+            ),
+            DeclareLaunchArgument(
+                'robot_ips',
+                default_value='',
+                description='Comma-separated list of IP adresses (optional).'
+                ' If provided, these will override the robot_ip values in the config file.',
+            ),
+            OpaqueFunction(function=generate_robot_nodes),
+        ]
+    )

@@ -1,17 +1,6 @@
 franka_bringup
 ==============
 
-.. note::
-
- ``franka_ros2`` is not supported on Windows.
-
-The `franka_ros2 repo <https://github.com/frankarobotics/franka_ros2>`_ contains a ROS 2 integration of
-`libfranka <https://frankarobotics.github.io/libfranka/>`_.
-
-.. caution::
-    franka_ros2 is in rapid development. Anticipate breaking changes. Report bugs on
-    `GitHub <https://github.com/frankarobotics/franka_ros2/issues>`_.
-
 Installation
 ------------
 
@@ -25,7 +14,7 @@ can be used to start the robot without any controllers.
 
 When you start the robot with::
 
-    ros2 launch franka_bringup franka.launch.py arm_id:=fr3 robot_ip:=<fci-ip> use_rviz:=true
+    ros2 launch franka_bringup franka.launch.py robot_type:=fr3 robot_ip:=<fci-ip>
 
 There is no controller running apart from the ``joint_state_broadcaster``. However, a connection with the robot is still
 established and the current robot pose is visualized in RViz. In this mode the robot can be guided when the user stop
@@ -56,39 +45,38 @@ or load and start a different one::
 Namespace enabled launch files
 ------------------------------
 
-To demonstrate how to launch the robot within a specified namespace, we provide an example launch file located at
+To demonstrate how to launch the robot within a specified namespace, an example launch file is provided at
 ``franka_bringup/launch/example.launch.py``.
 
-By default ``example.launch.py`` file is configured to read essential robot configuration details from a YAML file, ``franka.ns-config.yaml``,
-located in the franka_bringup/launch/ directory. You may provide a different YAML file by specifying the path to it in the command line.
+By default, ``example.launch.py`` reads robot configuration from ``franka_bringup/config/franka.config.yaml``.
+You can provide a different YAML file by specifying its path in the command line.
 
-``franka.ns-config.yaml`` file specifies critical parameters, including:
+The ``franka.config.yaml`` file specifies critical parameters, including:
 
 * The path to the robot's URDF file.
-* The namespace to be used for the robot instance.
-* Additional configuration details specific to the robot instance.
+* The namespace for the robot instance.
+* Additional robot-specific configuration details.
 
-example.launch.py "includes" ``franka.ns-launch.py`` which defines the core nodes typically required for robot operation..
+``example.launch.py`` includes ``franka.launch.py``, which defines the core nodes for robot operation.
+``franka.launch.py``, in turn, relies on ``controllers.yaml`` to configure the ``ros2_control`` framework.
+This setup ensures that controllers are loaded in a namespace-agnostic manner, supporting consistent behavior across multiple namespaces.
 
-The franka.ns-launch.py file, in turn, relies on ``ns-controllers.yaml`` to configure the ros2_controller framework.
-This configuration ensures that controllers are loaded in a namespace-agnostic manner, supporting consistent behavior across multiple namespaces.
+The ``controllers.yaml`` file is designed to accommodate multiple namespaces, provided they share the same node configuration parameters.
 
-The ns-controllers.yaml file is designed to accommodate zero or more namespaces, provided all namespaces share the same node configuration parameters.
-
-Each of the configuration and launch files (franka.ns-config.yaml, example.launch.py, franka.ns-launch.py, and ns-controllers.yaml)
-contains detailed inline documentation to guide users through their structure and usage.  Further information about namespaces in ROS 2 can be found in the
+Each configuration and launch file (``franka.config.yaml``, ``example.launch.py``, ``franka.launch.py``, and ``controllers.yaml``)
+contains detailed inline documentation. For more information about namespaces in ROS 2, refer to the
 `ROS 2 documentation <https://docs.ros.org/en/jazzy/Tutorials/Intermediate/Launch/Using-ROS2-Launch-For-Large-Projects.html#namespaces>`_.
 
-To execute any of the example controllers defined in ns-controllers.yaml, you can use the example.launch.py launch file and specify
-the desired controller name as a command-line argument.
+To execute any of the example controllers defined in ``controllers.yaml``, use the ``example.launch.py`` launch file and specify
+the controller name as a command-line argument.
 
-First - modify ``franka.ns-config.yaml`` as appropriate for your setup.
+First, modify ``franka.config.yaml`` as needed for your setup.
 
-Then, for example, to run the *move_to_start_example_controller*, use the following command:
+Then, to run the ``move_to_start_example_controller``, use the following command:
 
 .. code-block:: shell
 
-    ros2 launch franka_bringup example.launch.py controller_name:=move_to_start_example_controller
+    ros2 launch franka_bringup example.launch.py controller_names:=move_to_start_example_controller
 
 Non-realtime robot parameter setting
 ------------------------------------
@@ -113,12 +101,12 @@ Service message descriptions are given below.
    (damping is automatically derived from the stiffness).
  * ``franka_msgs::srv::SetCartesianStiffness`` specifies Cartesian stiffness for the internal
    controller (damping is automatically derived from the stiffness).
- * ``franka_msgs::srv::SetTCPFrame`` specifies the transformation from <arm_id>_EE (end effector) to
-   <arm_id>_NE (nominal end effector) frame. The transformation from flange to end effector frame
-   is split into two transformations: <arm_id>_EE to <arm_id>_NE frame and <arm_id>_NE to
-   <arm_id>_link8 frame. The transformation from <arm_id>_NE to <arm_id>_link8 frame can only be
+ * ``franka_msgs::srv::SetTCPFrame`` specifies the transformation from <robot_type>_EE (end effector) to
+   <robot_type>_NE (nominal end effector) frame. The transformation from flange to end effector frame
+   is split into two transformations: <robot_type>_EE to <robot_type>_NE frame and <robot_type>_NE to
+   <robot_type>_link8 frame. The transformation from <robot_type>_NE to <robot_type>_link8 frame can only be
    set through the administrator's interface.
- * ``franka_msgs::srv::SetStiffnessFrame`` specifies the transformation from <arm_id>_K to <arm_id>_EE frame.
+ * ``franka_msgs::srv::SetStiffnessFrame`` specifies the transformation from <robot_type>_K to <robot_type>_EE frame.
  * ``franka_msgs::srv::SetForceTorqueCollisionBehavior`` sets thresholds for external Cartesian
    wrenches to configure the collision reflex.
  * ``franka_msgs::srv::SetFullCollisionBehavior`` sets thresholds for external forces on Cartesian
@@ -133,9 +121,9 @@ Here is a minimal example:
 
 .. code-block:: shell
 
-    ros2 service call /service_server/set_joint_stif
-    fness franka_msgs/srv/SetJointStiffness "{joint_stiffness: [1000.0, 1000.0, 10
-    00.0, 1000.0, 1000.0, 1000.0, 1000.0]}"
+    ros2 service call /service_server/set_joint_stiffness \
+      franka_msgs/srv/SetJointStiffness \
+      "{joint_stiffness: [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0]}"
 
 .. important::
 
@@ -145,12 +133,12 @@ Here is a minimal example:
 
 .. important::
 
-    The <arm_id>_EE frame denotes the part of the
+    The <robot_type>_EE frame denotes the part of the
     configurable end effector frame which can be adjusted during run time through `franka_ros`. The
-    <arm_id>_K frame marks the center of the internal
+    <robot_type>_K frame marks the center of the internal
     Cartesian impedance. It also serves as a reference frame for external wrenches. *Neither the
-    <arm_id>_EE nor the <arm_id>_K are contained in the URDF as they can be changed at run time*.
-    By default, <arm_id> is set to "panda".
+    <robot_type>_EE nor the <robot_type>_K are contained in the URDF as they can be changed at run time*.
+    By default, <robot_type> is set to "panda".
 
     .. figure:: ../../docs/assets/frames.svg
         :align: center

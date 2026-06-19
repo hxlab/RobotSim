@@ -20,7 +20,7 @@
 
 #include "gtest/gtest.h"
 
-#include "franka_example_controllers/move_to_start_example_controller.hpp"
+#include "franka_example_controllers/fr3/move_to_start_example_controller.hpp"
 #include "hardware_interface/handle.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 

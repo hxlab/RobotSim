@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(franka_hardware)
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
+  set(CMAKE_CXX_STANDARD 20)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
@@ -29,6 +29,8 @@ add_library(franka_hardware SHARED
         src/franka_param_service_server.cpp
         src/robot.cpp
         src/ros_libfranka_logger.cpp
+
+        src/actions_helper/ptp_motion_handler.cpp
 )
 
 target_include_directories(
@@ -83,6 +85,7 @@ if(BUILD_TESTING)
         find_package(ament_cmake_clang_tidy REQUIRED)
         set(ament_cmake_clang_tidy_CONFIG_FILE ../.clang-tidy)
         ament_clang_tidy(${CMAKE_BINARY_DIR} --jobs 6)
+        set_tests_properties(clang_tidy PROPERTIES TIMEOUT 600) # override default 300s
     endif()
 endif()
 

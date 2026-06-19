@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Franka Robotics GmbH
+// Copyright (c) 2025 Franka Robotics GmbH
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -236,6 +236,20 @@ class Robot {
    */
   virtual void automaticErrorRecovery();
 
+  /**
+   * @return the shared pointer to the underlying libfranka robot
+   */
+  virtual auto getRobot() -> std::shared_ptr<franka::Robot> { return robot_; }
+
+  /**
+   * @return Returns the last pulled robot state. Important: This state is only updated when in
+   *    'someone' is calling readOnce().
+   */
+  virtual auto getCurrentState() -> const franka::RobotState& {
+    std::lock_guard<std::mutex> lock(control_mutex_);
+    return current_state_;
+  }
+
  protected:
   Robot() = default;
 
@@ -304,7 +318,7 @@ class Robot {
   std::mutex write_mutex_;
   std::mutex control_mutex_;
 
-  std::unique_ptr<franka::Robot> robot_;
+  std::shared_ptr<franka::Robot> robot_;
   std::unique_ptr<franka::ActiveControlBase> active_control_ = nullptr;
   std::unique_ptr<franka::Model> model_;
   std::unique_ptr<Model> franka_hardware_model_;

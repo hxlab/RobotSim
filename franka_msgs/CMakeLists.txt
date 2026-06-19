@@ -16,11 +16,15 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/Grasp.action"
   "action/Homing.action"
   "action/Move.action"
+  "action/PTPMotion.action"
+
   "msg/CollisionIndicators.msg"
   "msg/Elbow.msg"
   "msg/Errors.msg"
-  "msg/GraspEpsilon.msg"
   "msg/FrankaRobotState.msg"
+  "msg/GraspEpsilon.msg"
+  "msg/TargetStatus.msg"
+
   "srv/SetCartesianStiffness.srv"
   "srv/SetTCPFrame.srv"
   "srv/SetForceTorqueCollisionBehavior.srv"

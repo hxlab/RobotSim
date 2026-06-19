@@ -17,6 +17,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <tuple>
 
+#include <franka_hardware_mocks/franka_hardware_robot_mock.hpp>
 #include <hardware_interface/component_parser.hpp>
 #include <hardware_interface/hardware_info.hpp>
 #include <hardware_interface/types/hardware_interface_return_values.hpp>
@@ -29,7 +30,7 @@ class FrankaCartesianCommandInterfaceTest
     : public ::testing::TestWithParam<std::tuple<std::vector<std::string>, std::string>> {
  public:
   auto SetUp() -> void override {
-    auto filename = TEST_CASE_DIRECTORY + arm_id + ".urdf";
+    auto filename = TEST_CASE_DIRECTORY + robot_type + ".urdf";
     auto urdf_string = readFileToString(filename);
     auto parsed_hardware_infos = hardware_interface::parse_control_resources_from_urdf(urdf_string);
     auto number_of_expected_hardware_components = 1;
@@ -41,11 +42,11 @@ class FrankaCartesianCommandInterfaceTest
   }
 
  protected:
-  std::string arm_id{"fr3"};
+  std::string robot_type{"fr3"};
   std::shared_ptr<MockRobot> default_mock_robot = std::make_shared<MockRobot>();
   hardware_interface::HardwareInfo default_hardware_info;
   franka_hardware::FrankaHardwareInterface default_franka_hardware_interface{default_mock_robot,
-                                                                             arm_id};
+                                                                             robot_type};
 
   const std::vector<std::string> k_hw_cartesian_pose_names{
       "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"};

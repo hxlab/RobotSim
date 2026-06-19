@@ -25,12 +25,12 @@ from launch_ros.actions import Node
 def generate_robot_nodes(context):
     robot_ip = LaunchConfiguration('robot_ip').perform(context)
     use_fake_hardware = LaunchConfiguration('use_fake_hardware').perform(context)
-    arm_id = LaunchConfiguration('arm_id').perform(context)
+    robot_type = LaunchConfiguration('robot_type').perform(context)
     namespace = LaunchConfiguration('namespace').perform(context)
     # Declare the launch argument names
     default_joint_name_postfix = '_finger_joint'
-    joint_names_1 = arm_id + default_joint_name_postfix + '1'
-    joint_names_2 = arm_id + default_joint_name_postfix + '2'
+    joint_names_1 = robot_type + default_joint_name_postfix + '1'
+    joint_names_2 = robot_type + default_joint_name_postfix + '2'
     joint_names = [joint_names_1, joint_names_2]
 
     nodes = []
@@ -77,7 +77,7 @@ def generate_launch_description():
                 ),
             ),
             DeclareLaunchArgument(
-                'arm_id',
+                'robot_type',
                 default_value='fr3',
                 description=(
                     'Name of the arm in the URDF file. This is used to generate the joint '

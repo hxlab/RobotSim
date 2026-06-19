@@ -16,7 +16,7 @@
 #include <memory>
 #include <vector>
 
-#include "franka_example_controllers/gravity_compensation_example_controller.hpp"
+#include "franka_example_controllers/fr3/gravity_compensation_example_controller.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 #include "hardware_interface/handle.hpp"

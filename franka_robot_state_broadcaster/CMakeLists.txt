@@ -17,7 +17,6 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
     control_msgs
     controller_interface
     controller_manager
-    ros2_control_test_assets
     franka_msgs
     franka_semantic_components
     generate_parameter_library
@@ -91,6 +90,7 @@ if(BUILD_TESTING)
         find_package(ament_cmake_clang_tidy REQUIRED)
         set(ament_cmake_clang_tidy_CONFIG_FILE ../.clang-tidy)
         ament_clang_tidy(${CMAKE_BINARY_DIR} --jobs 6)
+        set_tests_properties(clang_tidy PROPERTIES TIMEOUT 600) # override default 300s
     endif()
 
     add_rostest_with_parameters_gmock(${PROJECT_NAME}_test

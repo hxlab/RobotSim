@@ -12,21 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
-import os
-from ament_index_python.packages import get_package_share_directory
+import franka_bringup.launch_utils as launch_utils
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, OpaqueFunction
+from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
+                            OpaqueFunction)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
 from launch_ros.substitutions import FindPackageShare
 
-# Add the path to the `utils` folder
-package_share = get_package_share_directory('franka_bringup')
-utils_path = os.path.join(package_share, '..', '..', 'lib', 'franka_bringup', 'utils')
-sys.path.append(os.path.abspath(utils_path))
-
-from launch_utils import load_yaml  # noqa: E402
+load_yaml = launch_utils.load_yaml
 
 
 def generate_robot_nodes(context):
@@ -44,7 +38,7 @@ def generate_robot_nodes(context):
             ),
             launch_arguments={
                 'robot_config_file': robot_config_file,
-                'controller_name': 'joint_impedance_with_ik_example_controller',
+                'controller_names': 'joint_impedance_with_ik_example_controller',
             }.items(),
         )
     )
@@ -59,37 +53,38 @@ def generate_robot_nodes(context):
         use_fake_hardware = config['use_fake_hardware']
         fake_sensor_commands = config['fake_sensor_commands']
         use_rviz = config['use_rviz']
+        arm_prefix = config['arm_prefix']
 
         # Define the additional nodes
         additional_nodes.append(
-          IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [
-                    PathJoinSubstitution(
-                        [
-                            FindPackageShare('franka_fr3_moveit_config'),
-                            'launch',
-                            'move_group.launch.py',
-                        ]
-                    )
-                ]
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    [
+                        PathJoinSubstitution(
+                            [
+                                FindPackageShare('franka_fr3_moveit_config'),
+                                'launch',
+                                'move_group.launch.py',
+                            ]
+                        )
+                    ]
+                ),
+                launch_arguments={
+                    'robot_ip': str(robot_ip),
+                    'namespace': str(namespace),
+                    'load_gripper': str(load_gripper),
+                    'use_fake_hardware': str(use_fake_hardware),
+                    'fake_sensor_commands': str(fake_sensor_commands),
+                    'use_rviz': str(use_rviz),
+                    'arm_prefix': str(arm_prefix),
+                }.items(),
             ),
-            launch_arguments={
-                'robot_ip': str(robot_ip),
-                'namespace': str(namespace),
-                'load_gripper': str(load_gripper),
-                'use_fake_hardware': str(use_fake_hardware),
-                'fake_sensor_commands': str(fake_sensor_commands),
-                'use_rviz': str(use_rviz),
-            }.items(),
-          ),
         )
     return additional_nodes
 
 
 def generate_launch_description():
     return LaunchDescription([
-        # Declare launch arguments and add additional ones if needed
         DeclareLaunchArgument(
             'robot_config_file',
             default_value=PathJoinSubstitution([
@@ -97,6 +92,5 @@ def generate_launch_description():
             ]),
             description='Path to the robot configuration file to load',
         ),
-        # Generate robot nodes
         OpaqueFunction(function=generate_robot_nodes),
     ])

@@ -25,34 +25,37 @@ find_package(moveit_msgs REQUIRED)
 find_package(pinocchio REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rclcpp_action REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(Eigen3 REQUIRED)
-find_package(realtime_tools REQUIRED)
 
 add_library(
         ${PROJECT_NAME}
         SHARED
-        src/cartesian_elbow_example_controller.cpp
-        src/cartesian_orientation_example_controller.cpp
-        src/cartesian_pose_example_controller.cpp
-        src/cartesian_velocity_example_controller.cpp
-        src/elbow_example_controller.cpp
-        src/gravity_compensation_example_controller.cpp
-        src/gripper_example_controller.cpp
-        src/joint_impedance_example_controller.cpp
-        src/joint_impedance_with_ik_example_controller.cpp
-        src/joint_position_example_controller.cpp
-        src/joint_velocity_example_controller.cpp
-        src/model_example_controller.cpp
+        src/fr3/cartesian_elbow_example_controller.cpp
+        src/fr3/cartesian_orientation_example_controller.cpp
+        src/fr3/cartesian_pose_example_controller.cpp
+        src/fr3/cartesian_velocity_example_controller.cpp
+        src/fr3/elbow_example_controller.cpp
+        src/fr3/gravity_compensation_example_controller.cpp
+        src/fr3/gripper_example_controller.cpp
+        src/fr3/joint_impedance_example_controller.cpp
+        src/fr3/joint_impedance_with_ik_example_controller.cpp
+        src/fr3/joint_position_example_controller.cpp
+        src/fr3/joint_velocity_example_controller.cpp
+        src/fr3/model_example_controller.cpp
         src/motion_generator.cpp
-        src/move_to_start_example_controller.cpp)
-target_include_directories(
-        ${PROJECT_NAME}
-        PUBLIC
+        src/fr3/move_to_start_example_controller.cpp
+)
+
+target_include_directories( ${PROJECT_NAME}
+    PUBLIC
         include
         ${EIGEN3_INCLUDE_DIRS}
 )
+
+
 ament_target_dependencies(
         ${PROJECT_NAME}
         controller_interface
@@ -66,8 +69,6 @@ ament_target_dependencies(
         rclcpp
         rclcpp_lifecycle
         std_srvs
-        realtime_tools 
-        std_msgs 
 )
 
 pluginlib_export_plugin_description_file(
@@ -85,6 +86,20 @@ install(
         DIRECTORY include/
         DESTINATION include
 )
+
+# PTP Motion example executable (binary)
+add_executable(ptp_motion_example_node
+    src/async_motions/ptp_motion_example_node.cpp)
+
+target_include_directories(ptp_motion_example_node PRIVATE include ${EIGEN3_INCLUDE_DIRS})
+
+ament_target_dependencies(ptp_motion_example_node
+    rclcpp
+    rclcpp_action
+    franka_msgs)
+
+install(TARGETS ptp_motion_example_node
+    RUNTIME DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
     find_package(ament_cmake_clang_format REQUIRED)
@@ -136,6 +151,7 @@ if(BUILD_TESTING)
         find_package(ament_cmake_clang_tidy REQUIRED)
         set(ament_cmake_clang_tidy_CONFIG_FILE ../.clang-tidy)
         ament_clang_tidy(${CMAKE_BINARY_DIR} --jobs 6)
+        set_tests_properties(clang_tidy PROPERTIES TIMEOUT 600) # override default 300s
     endif()
 endif()
 
