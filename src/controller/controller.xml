@@ -1,0 +1,7 @@
+<library path="controller">
+  <class
+      name="controller/HapticImpedanceController"
+      type="controller::HapticImpedanceController"
+      base_class_type="controller_interface::ControllerInterface">
+  </class>
+</library>

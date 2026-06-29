@@ -20,11 +20,14 @@ RUN apt-get update && \
         gdb \
         git \
         nano \
+        iputils-ping \
         openssh-client \
         python3-colcon-argcomplete \
         python3-colcon-common-extensions \
         sudo \
         vim \
+        libgtest-dev \
+        libgmock-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -45,22 +48,14 @@ RUN groupadd --gid $USER_GID $USERNAME \
     && chown user:user /run/user/"${USER_UID}" \
     && chown user:user /ros2_ws \
     && chown user:user /run/user/"${USER_UID}"/gdm \
-    # [Optional] Add sudo support. Omit if you don't need to install software after connecting.
     && apt-get update \
     && apt-get install -y sudo \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME \
     && chmod 0440 /etc/sudoers.d/$USERNAME
 
 # Install some ROS 2 dependencies to create a cache layer
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ros-humble-control-toolbox \
-        ros-humble-ackermann-msgs \
-        ros-humble-ament-cmake \
-        ros-humble-moveit \
-        libpoco-dev \
-        libeigen3-dev \
-
+RUN sudo apt-get update \
+    && sudo apt-get install -y --no-install-recommends \
         ros-humble-ros-gz \
         ros-humble-sdformat-urdf \
         ros-humble-joint-state-publisher-gui \
@@ -80,6 +75,7 @@ RUN apt-get update \
         ros-humble-realtime-tools \
         ros-humble-joint-state-publisher \
         ros-humble-joint-state-broadcaster \
+        ros-humble-diff-drive-controller \
         ros-humble-moveit-ros-move-group \
         ros-humble-moveit-kinematics \
         ros-humble-moveit-planners-ompl \
@@ -88,8 +84,12 @@ RUN apt-get update \
         ros-humble-moveit-simple-controller-manager \
         ros-humble-rviz2 \
         ros-humble-xacro \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+        ros-humble-teleop-twist-keyboard \
+        ros-humble-joy \
+        ros-humble-teleop-twist-joy \
+
+    && sudo apt-get clean \
+    && sudo rm -rf /var/lib/apt/lists/*
 
 ENV XDG_RUNTIME_DIR=/run/user/"${USER_UID}"
 RUN echo "user soft rtprio 99" >> /etc/security/limits.conf
@@ -123,10 +123,11 @@ USER $USERNAME
 # Install the missing ROS 2 dependencies
 COPY . /ros2_ws/src
 RUN sudo chown -R $USERNAME:$USERNAME /ros2_ws \
-    && vcs import src < src/franka.repos --recursive --skip-existing \
+    && vcs import src < src/dependency.repos --recursive --skip-existing \
     && sudo apt-get update \
     && rosdep update \
     && rosdep install --from-paths src --ignore-src --rosdistro $ROS_DISTRO -y \
+       --skip-keys="franka_selfcollision gz_sim_vendor parallel_gripper_controller gz_plugin_vendor" \
     && sudo apt-get clean \
     && sudo rm -rf /var/lib/apt/lists/* \
     && rm -rf /home/$USERNAME/.ros \

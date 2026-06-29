@@ -21,13 +21,13 @@ services:
       DISPLAY: ${DISPLAY}
       QT_X11_NO_MITSHM: 1
       ROS_LOCALHOST_ONLY: 1
-      GTDD_HOME: /ros2_ws/src/3dsystems
+      GTDD_HOME: /ros2_ws/3dsystems
 
     group_add:
       - dialout
 
     volumes:
-      - ./:/ros2_ws/src
+      - ./:/ros2_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ./limits.conf:/etc/security/limits.conf
       - /dev:/dev

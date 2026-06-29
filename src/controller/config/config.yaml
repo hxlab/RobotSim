@@ -1,0 +1,17 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 1000
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    haptic_impedance_controller:
+      type: controller/HapticImpedanceController
+
+haptic_impedance_controller:
+  ros__parameters:
+    robot_type: fr3
+    arm_prefix: ""
+
+    translational_stiffness: 1000.0
+    rotational_stiffness: 50.0

@@ -8,5 +8,6 @@ cmake-build-*/
 build/
 install/
 log/
-libfranka
-franka_description
+franka_deps/libfranka
+franka_deps/franka_description
+franka_deps/olvx_descriptions_module
