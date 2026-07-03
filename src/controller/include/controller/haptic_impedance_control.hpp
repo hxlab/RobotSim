@@ -25,6 +25,10 @@
 #include <rclcpp/wait_for_message.hpp>
 
 #include "controller/robot_interface.hpp"
+#include "controller/gripper_control.hpp"
+
+#include <rclcpp/time.hpp>
+#include <rclcpp/duration.hpp>
 
 using CallbackReturn =
     rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
@@ -61,22 +65,30 @@ namespace controller {
             Vector7d compute_cartesian_impedance_torque(
                 const Eigen::Vector3d& current_position,
                 const Eigen::Quaterniond& current_orientation,
+                const Vector7d& q,
                 const Vector7d& dq);
+
+            Vector7d saturate_torque_rate(
+                const Vector7d& tau_d_calculated,
+                const Vector7d& tau_J_d);
+
+            Eigen::Matrix<double, 6, 7> pseudo_inverse(const Eigen::Matrix<double, 7, 6>& J);
 
             // Haptic device methods
             void set_goal_pose_callback(const geometry_msgs::msg::Pose::SharedPtr msg);
             void button_callback(const std_msgs::msg::Int32::SharedPtr msg);
 
             // Gripper methods
-            bool open_gripper();
-            void close_gripper();
             void toggle_gripper_state();
 
-            static constexpr int kNumJoints = 7;
+            static constexpr int num_joints_ = 7;
 
             // Desired end-effector pose (from haptic device)
             Eigen::Vector3d position_d_;
             Eigen::Quaterniond orientation_d_;
+
+            Eigen::Vector3d velocity_d_;
+            Eigen::Vector3d angular_velocity_d_;
 
             // Haptic pose position scaling
             double position_scale_x_;
@@ -90,26 +102,34 @@ namespace controller {
             // Impedance control gains
             Matrix6d Kp_;
             Matrix6d Kd_;
+
+            // Other control variables
+            double nullspace_stiffness_{20.0};
+            double nullspace_stiffness_target_{20.0};
+            double joint1_nullspace_stiffness_{20.0};
+            double joint1_nullspace_stiffness_target_{20.0};
+            const double delta_tau_max_{1.0};
+            Vector7d q_d_nullspace_;
+            Vector7d tau_d_previous_;
             
             // State variables
-            std::vector<double> joint_positions_current_{0,0,0,0,0,0,0};
+            std::vector<double> joint_positions_current_{0,-0.785,0,-2.356,0,1.57,0.785};
             std::vector<double> joint_velocities_current_{0,0,0,0,0,0,0};
             std::vector<double> joint_efforts_current_{0,0,0,0,0,0,0};
 
             // Gripper parameters
-            std::shared_ptr<rclcpp_action::Client<franka_msgs::action::Grasp>> gripper_grasp_action_client_;
-            std::shared_ptr<rclcpp_action::Client<franka_msgs::action::Move>> gripper_move_action_client_;
-            std::shared_ptr<rclcpp::Client<std_srvs::srv::Trigger>> gripper_stop_client_;
+            std::unique_ptr<GripperController> gripper_;
             bool gripper_open_{false};
+
+            // gripper debounce
+            rclcpp::Time last_toggle_time_{0, 0, RCL_ROS_TIME};
+            double debounce_period_ = 0.3;
 
             // ROS2 parameters
             std::string robot_type_;
             std::string arm_prefix_;
-            std::string namespace_;
             bool initialization_flag_{true};
             const bool k_elbow_activated_{false};
-            const std::string k_robot_state_interface_name{"robot_state"};
-            const std::string k_robot_model_interface_name{"robot_model"};
             std::unique_ptr<robot_model_interface::RobotModelInterface> robot_model_;
 
             bool is_gazebo_{true};

@@ -27,6 +27,7 @@ add_library(
         SHARED
         src/haptic_impedance_control.cpp
         src/robot_interface.cpp
+        src/gripper_control.cpp
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)

@@ -80,7 +80,7 @@ def generate_launch_description():
         'arm_id', default_value='fr3',
         description='Available values: fr3, fp3 and fer')
     namespace_launch_argument = DeclareLaunchArgument(
-        'namespace', default_value='',
+        'namespace', default_value='namespace',
         description='Namespace for the robot.')
     config_launch_argument = DeclareLaunchArgument(
         'controllers_yaml',
