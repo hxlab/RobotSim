@@ -17,6 +17,7 @@ from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch.conditions import IfCondition
 
 import yaml
 
@@ -34,10 +35,11 @@ def load_yaml(package_name, file_path):
     except EnvironmentError:
         return None
 
-def get_robot_description(context: LaunchContext, arm_id, load_gripper, franka_hand):
+def get_robot_description(context: LaunchContext, arm_id, load_gripper, franka_hand, is_gazebo):
     arm_id_str = context.perform_substitution(arm_id)
     load_gripper_str = context.perform_substitution(load_gripper)
     franka_hand_str = context.perform_substitution(franka_hand)
+    is_gazebo_str = context.perform_substitution(is_gazebo)
 
     franka_xacro_file = os.path.join(
         get_package_share_directory('franka_description'),
@@ -50,9 +52,9 @@ def get_robot_description(context: LaunchContext, arm_id, load_gripper, franka_h
             'arm_id': arm_id_str,
             'hand': load_gripper_str,
             'ros2_control': 'true',
-            'gazebo': 'true',
+            'gazebo': is_gazebo_str,
             'ee_id': franka_hand_str,
-            'gazebo_effort': 'true'
+            'gazebo_effort': is_gazebo_str
         }
     )
 
@@ -89,17 +91,23 @@ def generate_launch_description():
         ),
         description='Override the default controllers.yaml file.'
     )
+    is_gazebo_argument = DeclareLaunchArgument(
+        "is_gazebo",
+        default_value="true",
+        description="Launch in Gazebo simulation mode"
+    )
 
     load_gripper = LaunchConfiguration('load_gripper')
     franka_hand = LaunchConfiguration('franka_hand')
     arm_id = LaunchConfiguration('arm_id')
     namespace = LaunchConfiguration('namespace')
     controllers_yaml = LaunchConfiguration('controllers_yaml')
+    is_gazebo = LaunchConfiguration('is_gazebo')
 
     # ========== ROBOT DESCRIPTION ==========
     robot_state_publisher = OpaqueFunction(
         function=get_robot_description,
-        args=[arm_id, load_gripper, franka_hand])
+        args=[arm_id, load_gripper, franka_hand, is_gazebo])
 
     # ========== GAZEBO ==========
     os.environ['GZ_SIM_RESOURCE_PATH'] = (
@@ -111,6 +119,7 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')),
         launch_arguments={'gz_args': get_custom_world_path() + ' -r'}.items(),
+        condition=IfCondition(is_gazebo)
     )
 
     # Reference to the inner spawn node for event handler chaining
@@ -124,6 +133,7 @@ def generate_launch_description():
             '-R', '0.0', '-P', '0.0', '-Y', '0.0'
         ],
         output='screen',
+        condition=IfCondition(is_gazebo)
     )
 
     # ========== CONTROLLERS ==========
@@ -158,7 +168,7 @@ def generate_launch_description():
         arm_id_launch_argument,
         namespace_launch_argument,
         config_launch_argument,
-
+        is_gazebo_argument,
         # start Gazebo first
         gazebo_custom_world,
 

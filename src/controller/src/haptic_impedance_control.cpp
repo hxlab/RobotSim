@@ -21,7 +21,7 @@ namespace controller {
         auto_declare<double>("position_scale_x", 3.0);
         auto_declare<double>("position_scale_y", 2.0);
         auto_declare<double>("position_scale_z", 1.0);
-        auto_declare<double>("height_offset", 0.3); 
+        auto_declare<double>("height_offset",    0.3);
 
         return CallbackReturn::SUCCESS;
     }
