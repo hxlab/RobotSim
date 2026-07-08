@@ -83,11 +83,6 @@ namespace controller {
         // end-effector velocity
         Vector6d xdot = jacobian * dq;
 
-        // end-effector velocity error
-        // Vector6d xdot_error;
-        // xdot_error.head<3>() = velocity_d_ - xdot.head<3>();
-        // xdot_error.tail<3>() = angular_velocity_d_ - xdot.tail<3>();
-
         // end-effector position error
         Eigen::Vector3d position_error = position_d_ - current_position;
 
@@ -145,7 +140,7 @@ namespace controller {
 
     Eigen::Matrix<double, 6, 7> HapticImpedanceController::pseudo_inverse(const Eigen::Matrix<double, 7, 6>& J) {
         // from https://github.com/rail-berkeley/serl_franka_controllers/blob/main/src/cartesian_impedance_controller.cpp
-        double lambda = 0.2;
+        double lambda = 0.2; // damping factor
 
         Eigen::JacobiSVD<Eigen::MatrixXd> svd(J, Eigen::ComputeFullU | Eigen::ComputeFullV);
         Eigen::JacobiSVD<Eigen::MatrixXd>::SingularValuesType sing_vals_ = svd.singularValues();
@@ -280,6 +275,9 @@ namespace controller {
         arm_prefix_ = get_node()->get_parameter("arm_prefix").as_string();
         is_gazebo_ = get_node()->get_parameter("gazebo").as_bool();
         arm_prefix_ = arm_prefix_.empty() ? "" : arm_prefix_ + "_";
+
+        auto sim_time = get_node()->get_parameter("use_sim_time").as_bool();
+        RCLCPP_INFO(get_node()->get_logger(), "Using sim time: %s", sim_time ? "true" : "false");
 
         if (is_gazebo_) {
             // for state tracking (EE position/orientation), Jacobian, Coriolis

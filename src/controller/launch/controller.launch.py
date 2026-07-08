@@ -136,6 +136,14 @@ def generate_launch_description():
         condition=IfCondition(is_gazebo)
     )
 
+    clock_node = Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
+            output='screen',
+            condition=IfCondition(is_gazebo)
+        )
+
     # ========== CONTROLLERS ==========
     
     joint_state_broadcaster_spawner = Node(
@@ -177,6 +185,8 @@ def generate_launch_description():
 
         # spawn robot after Gazebo has loaded
         spawn_node,  # needed for OnProcessExit event handler below
+
+        clock_node,
 
         # load controllers after spawn completes
         RegisterEventHandler(
