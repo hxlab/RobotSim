@@ -94,7 +94,8 @@ namespace controller {
             double position_scale_x_;
             double position_scale_y_;
             double position_scale_z_;
-            double height_offset_;
+            double z_offset_;
+            double x_offset_;
 
             // Mutex for position and orientation updates
             std::mutex pose_mutex_;

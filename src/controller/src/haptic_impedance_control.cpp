@@ -18,10 +18,11 @@ namespace controller {
         auto_declare<double>("rotational_stiffness", 150.0);
 
         // haptic device parameters
-        auto_declare<double>("position_scale_x", 3.0);
-        auto_declare<double>("position_scale_y", 2.0);
+        auto_declare<double>("position_scale_x", -3.2);
+        auto_declare<double>("position_scale_y", -2.0);
         auto_declare<double>("position_scale_z", 1.0);
-        auto_declare<double>("height_offset",    0.3);
+        auto_declare<double>("z_offset",         0.2);
+        auto_declare<double>("x_offset",         0.4);
 
         return CallbackReturn::SUCCESS;
     }
@@ -35,9 +36,9 @@ namespace controller {
         Eigen::Quaterniond prev_orientation_d = orientation_d_;
 
         position_d_ = Eigen::Vector3d(
-            (-msg->position.z * position_scale_x_) + height_offset_,
+            (-msg->position.z * position_scale_x_) + x_offset_,
             (-msg->position.x * position_scale_y_),
-            (msg->position.y * position_scale_z_) + height_offset_);
+            (msg->position.y * position_scale_z_) + z_offset_);
 
         // convert haptic orientation from message to Eigen
         orientation_d_ = Eigen::Quaterniond(
@@ -50,7 +51,9 @@ namespace controller {
         Eigen::Quaterniond rot_1(Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitZ()));
         Eigen::Quaterniond rot_0(Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitZ()));
         Eigen::Quaterniond base_down(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
-        orientation_d_ = (rot_1 * orientation_d_ * rot_0 * base_down).normalized();
+        orientation_d_ = (rot_1 * orientation_d_ * rot_0 * base_down);
+        // reverse since camera will be looking at the front of the robot, not the back
+        orientation_d_ = Eigen::Quaterniond(orientation_d_.w(), -orientation_d_.x(), orientation_d_.y(), -orientation_d_.z()).normalized();
 
         velocity_d_ = Eigen::Vector3d::Zero();
         angular_velocity_d_ = Eigen::Vector3d::Zero();
@@ -229,7 +232,7 @@ namespace controller {
         // Add finger command interface if using gazebo
         if(is_gazebo_){
             config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(1) + "/effort");
-            config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(2) + "/effort");
+            // config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(2) + "/effort");
         }
 
         return config;
@@ -331,7 +334,8 @@ namespace controller {
         position_scale_x_              = get_node()->get_parameter("position_scale_x").as_double();
         position_scale_y_              = get_node()->get_parameter("position_scale_y").as_double();
         position_scale_z_              = get_node()->get_parameter("position_scale_z").as_double();
-        height_offset_                 = get_node()->get_parameter("height_offset").as_double();
+        z_offset_                      = get_node()->get_parameter("z_offset").as_double();
+        x_offset_                      = get_node()->get_parameter("x_offset").as_double();
 
         // Get underlying ROS2 node to create subscribers and publishers
         auto node_ptr = get_node();
