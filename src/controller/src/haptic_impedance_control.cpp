@@ -229,6 +229,7 @@ namespace controller {
         // Add finger command interface if using gazebo
         if(is_gazebo_){
             config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(1) + "/effort");
+            config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(2) + "/effort");
         }
 
         return config;

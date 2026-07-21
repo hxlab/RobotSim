@@ -7,10 +7,9 @@
 #include <hardware_interface/loaned_state_interface.hpp>
 #include <franka_semantic_components/franka_robot_model.hpp>
 
-#include <pinocchio/multibody/model.hpp>
-#include <pinocchio/multibody/data.hpp>
-
-#include <pinocchio/parsers/urdf.hpp>
+#include <pinocchio/fwd.hpp>
+#include <pinocchio/multibody.hpp>
+#include "pinocchio/parsers/urdf.hpp"
 
 #include <pinocchio/algorithm/kinematics.hpp>
 #include <pinocchio/algorithm/jacobian.hpp>

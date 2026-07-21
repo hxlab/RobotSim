@@ -30,6 +30,7 @@ add_library(
         src/gripper_control.cpp
 )
 
+
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
 ament_target_dependencies(${PROJECT_NAME}
@@ -43,7 +44,10 @@ ament_target_dependencies(${PROJECT_NAME}
   franka_msgs
   controller_interface
   franka_semantic_components
-  pinocchio
+)
+
+target_link_libraries(${PROJECT_NAME}
+  pinocchio::pinocchio
 )
 
 pluginlib_export_plugin_description_file(
