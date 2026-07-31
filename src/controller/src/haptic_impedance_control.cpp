@@ -51,9 +51,12 @@ namespace controller {
         Eigen::Quaterniond rot_1(Eigen::AngleAxisd(-M_PI/2, Eigen::Vector3d::UnitZ()));
         Eigen::Quaterniond rot_0(Eigen::AngleAxisd(M_PI/2, Eigen::Vector3d::UnitZ()));
         Eigen::Quaterniond base_down(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitX()));
-        orientation_d_ = (rot_1 * orientation_d_ * rot_0 * base_down);
-        // reverse since camera will be looking at the front of the robot, not the back
-        orientation_d_ = Eigen::Quaterniond(orientation_d_.w(), -orientation_d_.x(), orientation_d_.y(), -orientation_d_.z()).normalized();
+        Eigen::Quaterniond front_camera(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()));
+
+        orientation_d_ = front_camera *                                 // hard coded camera placement, camera will always be in "front" of the robot
+                        (rot_1 * orientation_d_ * rot_0 * base_down);
+
+        orientation_d_ = Eigen::Quaterniond(orientation_d_.w(), orientation_d_.x(), orientation_d_.y(), orientation_d_.z()).normalized();
 
         velocity_d_ = Eigen::Vector3d::Zero();
         angular_velocity_d_ = Eigen::Vector3d::Zero();
@@ -232,7 +235,7 @@ namespace controller {
         // Add finger command interface if using gazebo
         if(is_gazebo_){
             config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(1) + "/effort");
-            // config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(2) + "/effort");
+            config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(2) + "/effort");
         }
 
         return config;
@@ -268,6 +271,7 @@ namespace controller {
         // Add finger command interface if using gazebo
         if(is_gazebo_){
             config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(1) + "/effort");
+            config.names.push_back(arm_prefix_ + robot_type_ + "_finger_joint" + std::to_string(2) + "/effort");
         }
 
         return config;
@@ -361,7 +365,7 @@ namespace controller {
         initialization_flag_ = true;
 
         robot_model_->assign_loaned_state_interfaces(state_interfaces_);
-        gripper_->on_activate(command_interfaces_[num_joints_]);
+        gripper_->on_activate(command_interfaces_[num_joints_], command_interfaces_[num_joints_+1]);
 
         // initialize the nullspace variable to the current joint positions
         for (int i = 0; i < num_joints_; i++) {

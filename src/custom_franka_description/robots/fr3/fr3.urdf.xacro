@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="fr3">
 
-  <xacro:include filename="$(find franka_description)/robots/common/franka_robot.xacro"/>
+  <xacro:include filename="$(find custom_franka_description)/robots/common/franka_robot.xacro"/>
 
   <!-- Define arguments -->
   <!-- The ID of the robot model to be used -->
@@ -59,7 +59,7 @@
   <xacro:arg name="gazebo_effort" default="false"/>
 
   <!-- Name of the description package -->
-  <xacro:arg name="description_pkg" default="franka_description"/>
+  <xacro:arg name="description_pkg" default="custom_franka_description"/>
 
   <!-- Append an underscore to the user-provided prefix, if non-empty. -->
   <xacro:property name="prefix" value="$(arg arm_prefix)"/>

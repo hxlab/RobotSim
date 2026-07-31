@@ -6,8 +6,9 @@ namespace controller {
         // no action server configuration needed
     }
 
-    void GazeboGripperController::on_activate(hardware_interface::LoanedCommandInterface& command_interfaces){
-        gripper_ = &command_interfaces;
+    void GazeboGripperController::on_activate(hardware_interface::LoanedCommandInterface& gripper1, hardware_interface::LoanedCommandInterface& gripper2){
+        gripper1_ = &gripper1;
+        gripper2_ = &gripper2;
     }
 
     void GazeboGripperController::on_deactivate(){
@@ -23,7 +24,8 @@ namespace controller {
     }
 
     void GazeboGripperController::update(){
-        gripper_->set_value(desired_effort_);
+        gripper1_->set_value(desired_effort_);
+        gripper2_->set_value(desired_effort_);
     }
 
     void FrankaGripperController::on_configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node){
@@ -39,7 +41,7 @@ namespace controller {
             fmt::format("{}/franka_gripper/stop", namespace_));
     }
 
-    void FrankaGripperController::on_activate(hardware_interface::LoanedCommandInterface& command_interfaces){
+    void FrankaGripperController::on_activate(hardware_interface::LoanedCommandInterface& gripper1, hardware_interface::LoanedCommandInterface& gripper2){
         // no loaned command interface
     }
 

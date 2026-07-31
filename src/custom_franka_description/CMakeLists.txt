@@ -21,6 +21,7 @@ install(
   DIRECTORY
     robots
     end_effectors
+    meshes
   DESTINATION
     share/${PROJECT_NAME}/
 )

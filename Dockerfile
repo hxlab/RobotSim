@@ -87,6 +87,10 @@ RUN sudo apt-get update \
         ros-humble-teleop-twist-keyboard \
         ros-humble-joy \
         ros-humble-teleop-twist-joy \
+        ros-humble-librealsense2 \
+        ros-humble-realsense2-camera \
+        ros-humble-realsense2-camera-msgs \
+        ros-humble-realsense2-description \
 
     && sudo apt-get clean \
     && sudo rm -rf /var/lib/apt/lists/*

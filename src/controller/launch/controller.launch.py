@@ -111,7 +111,7 @@ def generate_launch_description():
 
     # ========== GAZEBO ==========
     os.environ['GZ_SIM_RESOURCE_PATH'] = (
-        os.path.dirname(get_package_share_directory('franka_description'))
+        os.path.dirname(get_package_share_directory('custom_franka_description'))
     )
 
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
@@ -139,7 +139,12 @@ def generate_launch_description():
     clock_node = Node(
             package='ros_gz_bridge',
             executable='parameter_bridge',
-            arguments=['/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock'],
+            arguments=[
+                '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+                '/depth_camera/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked',
+                '/depth_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
+                '/depth_camera/image@sensor_msgs/msg/Image@ignition.msgs.Image',
+            ],
             output='screen',
             condition=IfCondition(is_gazebo)
         )

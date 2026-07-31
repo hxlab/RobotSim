@@ -38,10 +38,19 @@ class GUINode(Node, QMainWindow):
         # GUI update function
         self.image_signal.connect(self.update_gui_image)
 
+        self.declare_parameter('is_gazebo', 'true')
+        self.is_gazebo = self.get_parameter('is_gazebo').get_parameter_value().string_value
+        self.get_logger().info(f'Received argument: {self.is_gazebo}')
+
+        if self.is_gazebo == 'true':
+            camera_topic = '/depth_camera/image'
+        else:
+            camera_topic = '/camera/camera/color/image_raw'
+            
         # subscribe to camera topic
         self.subscription = self.create_subscription(
             Image,
-            '/camera/camera/color/image_raw',
+            camera_topic,
             self.image_callback,
             10
         )   

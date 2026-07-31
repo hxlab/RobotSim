@@ -25,7 +25,7 @@ namespace controller {
             virtual ~GripperController() = default;
 
             virtual void on_configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node) = 0;
-            virtual void on_activate(hardware_interface::LoanedCommandInterface& command_interfaces) = 0;
+            virtual void on_activate(hardware_interface::LoanedCommandInterface& gripper1, hardware_interface::LoanedCommandInterface& gripper2) = 0;
             virtual void on_deactivate() = 0;
             virtual void open() = 0;
             virtual void close() = 0;
@@ -35,20 +35,21 @@ namespace controller {
     class GazeboGripperController : public GripperController {
         public:
             void on_configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node) override;
-            void on_activate(hardware_interface::LoanedCommandInterface& command_interfaces) override;
+            void on_activate(hardware_interface::LoanedCommandInterface& gripper1, hardware_interface::LoanedCommandInterface& gripper2) override;
             void on_deactivate() override;
             void open() override;
             void close() override;
             void update() override;
         private:
-            hardware_interface::LoanedCommandInterface* gripper_;
+            hardware_interface::LoanedCommandInterface* gripper1_;
+            hardware_interface::LoanedCommandInterface* gripper2_;
             double desired_effort_ = -20.0;
     };
 
     class FrankaGripperController : public GripperController {
         public:
             void on_configure(rclcpp_lifecycle::LifecycleNode::SharedPtr node) override;
-            void on_activate(hardware_interface::LoanedCommandInterface& command_interfaces) override;
+            void on_activate(hardware_interface::LoanedCommandInterface& gripper1, hardware_interface::LoanedCommandInterface& gripper2) override;
             void on_deactivate() override; 
             void open() override;
             void close() override;

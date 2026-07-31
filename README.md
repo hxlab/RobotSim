@@ -59,3 +59,14 @@ This brings up:
 ```bash
 ros2 launch haptic_device haptic_device.launch.py
 ```
+
+Or test the gripper
+
+```bash
+ros2 topic pub /haptic/buttons std_msgs/msg/Int32 "{data: 1}" --once
+```
+
+### 3. Run the GUI node
+```bash
+ros2 launch gui gui.launch.py
+```
