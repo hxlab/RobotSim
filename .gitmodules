@@ -1,0 +1,6 @@
+[submodule "deps/uois"]
+	path = deps/uois
+	url = https://github.com/chrisdxie/uois.git
+[submodule "deps/contact_graspnet"]
+	path = deps/contact_graspnet
+	url = https://github.com/NVlabs/contact_graspnet
