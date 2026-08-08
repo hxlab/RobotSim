@@ -22,27 +22,55 @@ This workspace implements a Cartesian impedance controller for the Franka FR3 ro
 
 ## Opening and Building the Workspace
 
-### 1. Open in VS Code Dev Container
+Clone the repository and install docker.
 
-When prompted by VS Code, click **"Reopen in Container"** (or use `Ctrl+Shift+P` → *Dev Containers: Reopen in Container*).
+### 1. Set up the Docker container(s)
 
-The dev container entrypoint script (`franka_entrypoint.sh`) will automatically clone all Franka dependencies into `/ros2_ws` using `vcs import`.
+The Docker containers are structured as follows:
 
-### 2. Build the workspace
+                              ROS 2
+                                │
+          ┌─────────────────────┼─────────────────────┐
+          │                     │                     │
+          ▼                     ▼                     ▼
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+│       USER       │   │      ROBOT       │   │ CONTACT_GRASPNET │
+│                  │   │                  │   │                  │
+│  GUI             │   │   Controller     │   │                  │
+│  Haptic Device   │   │   franka_ros2    │   │ Contact-GraspNet │
+│                  │   │                  │   │ CUDA / PyTorch   │
+│  PyQt5           │   │   Gazebo (sim)   │   │                  │
+│  OpenHaptics     │   │                  │   │                  │
+└──────────────────┘   └──────────────────┘   └──────────────────┘
+       │                         │                      │
+   /robot_ws                 /user_ws            /root/graspnet_ws
+
+Then
+```bash
+cd RobotSim
+docker compose build -progress=plain {CONTAINER_NAME}
+docker compose up {CONTAINER_NAME}
+docker exec -it {CONTAINER_NAME} bash
+```
+
+Build each container (robot, user, contact_graspnet) individually using the commands above and swapping {CONTAINER_NAME} for each container's name. Note that there is a `docker-compose.yml` file.
+
+### 2. Build the workspace(s)
 
 ```bash
-cd /ros2_ws
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
 ```
 
 > **Note:** You must run `source install/setup.bash` in every new terminal, or add it to your `~/.bashrc`.
 
+You will need to run this in each container.s
+
 ---
 
 ## Running the Simulation
 
-### 1. Launch the full simulation
+### 1. Launch the simulation OR run with the real robot
 
 ```bash
 ros2 launch controller controller.launch.py
@@ -70,3 +98,8 @@ ros2 topic pub /haptic/buttons std_msgs/msg/Int32 "{data: 1}" --once
 ```bash
 ros2 launch gui gui.launch.py
 ```
+
+## To do
+1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
+2. Test contact_graspnet_ros2
+3. Test communication between docker containers (robot, user, contact_graspnet)

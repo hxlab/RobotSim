@@ -1,6 +1,9 @@
 [submodule "deps/uois"]
-	path = deps/uois
+	path = src/grasp_generation/grasp_generation/uois
 	url = https://github.com/chrisdxie/uois.git
-[submodule "deps/contact_graspnet"]
-	path = deps/contact_graspnet
-	url = https://github.com/NVlabs/contact_graspnet
+[submodule "robot/src/franka_ros2"]
+	path = robot/src/franka_ros2
+	url = https://git.uwaterloo.ca/robohub/panda/franka_ros2.git
+[submodule "contact_graspnet_ros2"]
+	path = contact_graspnet_ros2
+	url = https://github.com/aidankirwin/contact_graspnet_ros2.git
