@@ -4,3 +4,6 @@
 [submodule "contact_graspnet_ros2"]
 	path = contact_graspnet_ros2
 	url = https://github.com/aidankirwin/contact_graspnet_ros2.git
+[submodule "robot/src/grasp_generation/grasp_generation/uois"]
+	path = robot/src/grasp_generation/grasp_generation/uois
+	url = https://github.com/chrisdxie/uois.git
