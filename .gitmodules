@@ -1,6 +1,3 @@
-[submodule "deps/uois"]
-	path = src/grasp_generation/grasp_generation/uois
-	url = https://github.com/chrisdxie/uois.git
 [submodule "robot/src/franka_ros2"]
 	path = robot/src/franka_ros2
 	url = https://git.uwaterloo.ca/robohub/panda/franka_ros2.git
