@@ -48,7 +48,7 @@ The Docker containers are structured as follows:
 Then
 ```bash
 cd RobotSim
-docker compose build -progress=plain {CONTAINER_NAME}
+docker compose build --progress=plain {CONTAINER_NAME}
 docker compose up {CONTAINER_NAME}
 docker exec -it {CONTAINER_NAME} bash
 ```
@@ -102,4 +102,3 @@ ros2 launch gui gui.launch.py
 ## To do
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
 2. Test contact_graspnet_ros2
-3. Test communication between docker containers (robot, user, contact_graspnet)

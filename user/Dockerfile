@@ -72,6 +72,8 @@ RUN apt-get update && \
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        ros-humble-ros-gz \
+        ros-humble-ros-gz-interfaces \
         ros-humble-rclpy \
         ros-humble-std-msgs \
         ros-humble-geometry-msgs \
@@ -80,6 +82,12 @@ RUN apt-get update && \
         ros-humble-tf2 \
         ros-humble-tf2-ros \
         ros-humble-tf2-geometry-msgs \
+        ros-humble-moveit \
+        ros-humble-moveit-ros-move-group \
+        ros-humble-moveit-kinematics \
+        ros-humble-moveit-planners-ompl \
+        ros-humble-moveit-ros-visualization \
+        ros-humble-moveit-simple-controller-manager \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

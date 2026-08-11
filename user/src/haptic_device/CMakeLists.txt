@@ -23,7 +23,6 @@ find_package(trajectory_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
-find_package(franka_msgs REQUIRED)
 
 
 set(OPENHAPTICS_DIR "/opt/OpenHaptics/Developer/3.4-0")
