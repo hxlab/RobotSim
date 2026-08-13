@@ -1,14 +1,18 @@
-# RobotSim Design Artifacts
-**Authors:** Steven Yang, Aidan Kirwin, Dawang Zhang
-**Platform:** ROS 2 Humble | Ubuntu 22.04 | Franka FR3
+# Shared Control Project Design Artifacts
+**Authors:** Aidan Kirwin, Dawang Zhang, Steven Yang | 
+**Platform:** ROS 2 Humble,  Ubuntu 22.04, Franka Panda Arm
 
 ---
 
 ## Overview
 
-This workspace implements a Cartesian impedance controller for the Franka FR3 robot arm in simulation. 
+This workspace implements a Cartesian impedance controller for the Franka Panda robot arm in simulation or on the real robot. 
 - The controller maps position errors to end-effector motion using a virtual first-order spring-damper system. 
 - Joint torques are computed via a Jacobian pseudoinverse and sent to a modified low-level torque controller.
+
+The workspace also includes:
+- Grasp pose generation using UOIS unseen object segmentation and NVIDIA Contact-GraspNet.
+- A GUI to view the RGB camera data, depth map, object segmentation, grasp candidates, and modify certain parameters at runtime.
 
 ## Dependencies
 
@@ -103,4 +107,4 @@ ros2 launch gui gui.launch.py
 
 ## To do
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
-2. Figure out how to include contact_graspnet and the ROS2 contact_graspnet wrapper
+2. Test contact_graspnet container (and document how this works, note that the container diagram isn't entirely up to date since we are now using a DiD setup for the ROS2 CGN wrapper)
