@@ -108,3 +108,74 @@ ros2 launch gui gui.launch.py
 ## To do
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
 2. Test contact_graspnet container (and document how this works, note that the container diagram isn't entirely up to date since we are now using a DiD setup for the ROS2 CGN wrapper)
+
+## Testing
+
+Running the CGN containers in Podman (on the BFG computer)
+
+For contact_graspnet_ros2:
+
+```bash
+podman build \
+  -t contact_graspnet_ros2 \
+  -f ./contact_graspnet/Dockerfile \
+  --build-arg USER_UID="${USER_UID}" \
+  --build-arg USER_GID="${USER_GID}" \
+  --build-arg USERNAME=user \
+  ./contact_graspnet
+```
+
+then:
+
+```bash
+podman run -it \
+  --name contact_graspnet_ros2 \
+  --user root \
+  --network host \
+  --ipc host \
+  --privileged \
+  --env ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" \
+  --env ROS_LOCALHOST_ONLY=0 \
+  --group-add dialout \
+  --cap-add SYS_NICE \
+  --cap-add SYS_PTRACE \
+  --ulimit rtprio=99:99 \
+  --ulimit memlock=102400:102400 \
+  -v "$(pwd)/contact_graspnet:/cgn_ros2_ws" \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+  -v "$HOME/.docker.xauth:/tmp/.docker.xauth:ro" \
+  -v "$(pwd)/limits.conf:/etc/security/limits.conf" \
+  contact_graspnet_ros2 \
+  /bin/bash
+```
+
+For the GPU contact_graspnet container:
+
+```bash
+podman build \
+  -t contact_graspnet \
+  -f ./contact_graspnet/contact_graspnet/Dockerfile \
+  --build-arg USER_UID="${USER_UID}" \
+  --build-arg USER_GID="${USER_GID}" \
+  --build-arg USERNAME=contact_graspnet \
+  ./contact_graspnet/contact_graspnet
+```
+
+then:
+
+```bash
+podman run -it \
+  --name contact_graspnet \
+  --network host \
+  --ipc host \
+  --shm-size 32g \
+  --env ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" \
+  --env ROS_LOCALHOST_ONLY=0 \
+  --env NVIDIA_VISIBLE_DEVICES=all \
+  --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics \
+  --device nvidia.com/gpu=all \
+  -v "$(pwd)/contact_graspnet/contact_graspnet:/cgn_ws" \
+  contact_graspnet \
+  bash -lc 'conda run -n contact-graspnet bash compile_pointnet_tfops.sh && exec bash -l'
+```
