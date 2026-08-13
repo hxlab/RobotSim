@@ -122,6 +122,7 @@ RUN apt-get update && \
         ros-humble-realsense2-camera \
         ros-humble-realsense2-camera-msgs \
         ros-humble-realsense2-description \
+        ros-humble-message-filters \
         libignition-gazebo6-dev \
         libignition-plugin-dev \
     && apt-get clean \

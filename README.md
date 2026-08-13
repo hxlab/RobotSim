@@ -101,4 +101,4 @@ ros2 launch gui gui.launch.py
 
 ## To do
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
-2. Test contact_graspnet_ros2
+2. Figure out how to include contact_graspnet and the ROS2 contact_graspnet wrapper

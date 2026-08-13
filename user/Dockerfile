@@ -82,6 +82,7 @@ RUN apt-get update && \
         ros-humble-tf2 \
         ros-humble-tf2-ros \
         ros-humble-tf2-geometry-msgs \
+        ros-humble-message-filters \
         ros-humble-moveit \
         ros-humble-moveit-ros-move-group \
         ros-humble-moveit-kinematics \

@@ -131,12 +131,67 @@ services:
 
 
   # ============================================================
-  # CONTACT-GRASPNET / GPU
+  # CONTACT-GRASPNET ROS2 WRAPPER
   # ============================================================
+  contact_graspnet_ros2:
+    build:
+      context: ./contact_graspnet
+      dockerfile: Dockerfile
+      args:
+        USER_UID: ${USER_UID}
+        USER_GID: ${USER_GID}
+        USERNAME: user
+
+    user: root # this is a temporary change, hopefully
+
+    container_name: contact_graspnet_ros2
+
+    network_mode: host
+    ipc: host
+    privileged: true
+
+    command: /bin/bash
+    tty: true
+    stdin_open: true
+
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      ROS_LOCALHOST_ONLY: "0"
+
+    group_add:
+      - dialout
+
+    volumes:
+      - ./contact_graspnet:/cgn_ros2_ws
+      - /var/run/docker.sock:/var/run/docker.sock # this is a temporary change, hopefully
+
+      # X11
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ~/.docker.xauth:/tmp/.docker.xauth:ro
+
+      # Realtime limits
+      - ./limits.conf:/etc/security/limits.conf
+
+    cap_add:
+      - SYS_NICE
+      - SYS_PTRACE
+
+    ulimits:
+      rtprio:
+        soft: 99
+        hard: 99
+      memlock:
+        soft: 102400
+        hard: 102400
+
   contact_graspnet:
     build:
-      context: ./contact_graspnet_ros2
+      context: ./contact_graspnet/contact_graspnet
       dockerfile: Dockerfile
+      args:
+        USER_UID: ${USER_UID}
+        USER_GID: ${USER_GID}
+        USERNAME: contact_graspnet
 
     container_name: contact_graspnet
 
@@ -147,7 +202,6 @@ services:
 
     command: >
       bash -lc "
-        cd /root/graspnet_ws/contact_graspnet &&
         conda run -n contact-graspnet bash compile_pointnet_tfops.sh &&
         exec bash -l
       "
@@ -162,7 +216,7 @@ services:
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
 
     volumes:
-      - ./contact_graspnet_ros2:/root/graspnet_ws
+      - ./contact_graspnet/contact_graspnet:/cgn_ws
 
     deploy:
       resources:

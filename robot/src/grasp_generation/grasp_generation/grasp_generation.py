@@ -3,6 +3,7 @@ import rclpy
 import sys
 from rclpy.node import Node
 from sensor_msgs.msg import Image, PointCloud2, Pose
+from message_filters import ApproximateTimeSynchronizer, Subscriber
 
 import numpy as np
 
@@ -33,57 +34,48 @@ class GraspGenNode(Node):
         self.bridge = CvBridge()
             
         # subscribe to camera topic
-        self.rgb_subscription = self.create_subscription(
+        self.rgb_subscription = Subscriber(
+            self
             Image,
             rgb_topic,
-            self.rgb_callback,
-            10
         )   
-        self.depth_subscription = self.create_subscription(
+        self.depth_subscription = Subscriber(
+            self,
             PointCloud2,
             depth_topic,
-            self.depth_callback,
-            10
         )
+
+        self.ts = ApproximateTimeSynchronizer(
+            [self.rgb_subscription, self.depth_subscription], 
+            queue_size=10, 
+            slop=0.1
+        )
+
+        # 3. Register the single callback function
+        self.ts.registerCallback(self.process_data_callback)
 
         # publish the segmentation mask and top grasp pose
         self.segmentation_mask_publisher = self.create_publisher(Image, '/segmentation_mask', 10)
-        self.top_grasp_pose_publisher = self.create_publisher(Pose, '/top_grasp_pose', 10)
 
-    def rgb_callback(self, msg):
+
+    def process_data_callback(self, rgb_msg, depth_msg):
         try:
+            # convert the imgmsg to opencv format
             cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             cv_img_rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
             self.latest_rgb_image = cv_img_rgb
-            
-        except Exception as e:
-            self.get_logger().error(f"Failed to convert image: {e}")
 
-    def depth_callback(self, msg):
-        try:
             # convert the PointCloud2 message to a numpy array
             points = np.frombuffer(msg.data, dtype=np.float32)
             points = points.reshape(-1, 4)
             self.latest_depth_image = points
 
-        except Exception as e:
-            self.get_logger().error(f"Failed to convert point cloud: {e}")
-
-    def process_image(self):
-        if self.latest_rgb_image is not None and self.latest_depth_image is not None:
-            rgb_img_buffer = self.latest_rgb_image.copy()
-            depth_img_buffer = self.latest_depth_image.copy()
-
-            # perform unseen object segmentation using uois
+            # segmentation
             segmentation_mask = self.perform_segmentation(self.latest_rgb_image)
-            # publish segmentation mask
-            mask_msg = self.bridge.cv2_to_imgmsg(segmentation_mask, encoding='mono8')
             self.segmentation_mask_publisher.publish(mask_msg)
-
-            # generate grasps using contact graspnet
-            top_grasp_pose = self.generate_grasps(self.latest_rgb_image, self.latest_depth_image, segmentation_mask)
-            # publish top grasp pose
-            self.top_grasp_pose_publisher.publish(top_grasp_pose)
+            
+        except Exception as e:
+            self.get_logger().error(f"Failed to convert image: {e}")
 
     def perform_segmentation(self, rgb_image):
         # Placeholder for unseen object segmentation using uois
