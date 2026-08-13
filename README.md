@@ -28,6 +28,7 @@ Clone the repository and install docker.
 
 The Docker containers are structured as follows:
 
+```
                               ROS 2
                                 │
           ┌─────────────────────┼─────────────────────┐
@@ -44,6 +45,7 @@ The Docker containers are structured as follows:
 └──────────────────┘   └──────────────────┘   └──────────────────┘
        │                         │                      │
    /robot_ws                 /user_ws            /root/graspnet_ws
+```
 
 Then
 ```bash
