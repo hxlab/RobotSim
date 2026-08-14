@@ -111,7 +111,7 @@ ros2 launch gui gui.launch.py
 
 ## Testing
 
-Running the CGN containers in Podman (on the BFG computer)
+Running the CGN containers in Podman (on the BFG computer). NOTE: this is still in progress, need to re-write the CGN ROS2 wrapper to use podman exec instead of docker and set up the ROS2 topics.
 
 For contact_graspnet_ros2:
 
