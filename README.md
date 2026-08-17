@@ -26,7 +26,13 @@ The workspace also includes:
 
 ## Opening and Building the Workspace
 
-Clone the repository and install docker.
+1. Install Docker Engine (https://docs.docker.com/engine/install/ubuntu/)
+2. Clone this repository
+```bash
+git clone https://github.com/hxlab/RobotSim.git
+cd RobotSim
+git submodule update --init --recursive
+```
 
 ### 1. Set up the Docker container(s)
 
