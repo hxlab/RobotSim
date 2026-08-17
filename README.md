@@ -33,6 +33,7 @@ git clone https://github.com/hxlab/RobotSim.git
 cd RobotSim
 git submodule update --init --recursive
 ```
+3. Install the NVIDIA Container Toolkit (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
 
 ### 1. Set up the Docker container(s)
 
@@ -80,9 +81,26 @@ You will need to run this in each container.s
 
 ---
 
-## Running the Simulation
+## Running the Workspace
 
-### 1. Launch the simulation OR run with the real robot
+### Contact-GraspNet (NVIDIA computer)
+
+NOTE: you must [download](https://drive.google.com/drive/folders/1tBHKf60K8DLM5arm-Chyf7jxkzOr5zGl) a model, make a `contact_graspnet/contact_graspnet/checkpoints` directory, and place the model (i.e., all contents of the downloaded model folder; recommended `scene_test_2048_hor_sigma_001`) in the directory.
+
+Once both CGN containers (`contact_graspnet_ros` and `contact_graspnet`) are built and running, enter the `contact_graspnet` container and run
+```bash
+conda run -n contact-graspnet bash compile_pointnet_tfops.sh
+```
+
+If any of the tests return an error about GLIBCXX_3.4.29 you might need to run
+
+```bash
+conda activate contact-graspnet
+conda install -c conda-forge libstdcxx-ng
+strings $CONDA_PREFIX/lib/libstdc++.so.6 | grep GLIBCXX_3.4.29
+```
+
+### Controller (robot system)
 
 ```bash
 ros2 launch controller controller.launch.py
@@ -94,7 +112,7 @@ This brings up:
 - `joint_state_publisher`
 - The controller node
 
-### 2. Run the haptic device node
+### Haptic device (user system)
 
 ```bash
 ros2 launch haptic_device haptic_device.launch.py
@@ -106,82 +124,11 @@ Or test the gripper
 ros2 topic pub /haptic/buttons std_msgs/msg/Int32 "{data: 1}" --once
 ```
 
-### 3. Run the GUI node
+### GUI (user system)
 ```bash
 ros2 launch gui gui.launch.py
 ```
 
 ## To do
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
-2. Test contact_graspnet container (and document how this works, note that the container diagram isn't entirely up to date since we are now using a DiD setup for the ROS2 CGN wrapper)
-
-## Testing
-
-Running the CGN containers in Podman (on the BFG computer). NOTE: this is still in progress, need to re-write the CGN ROS2 wrapper to use podman exec instead of docker and set up the ROS2 topics.
-
-For contact_graspnet_ros2:
-
-```bash
-podman build \
-  -t contact_graspnet_ros2 \
-  -f ./contact_graspnet/Dockerfile \
-  --build-arg USER_UID="${USER_UID}" \
-  --build-arg USER_GID="${USER_GID}" \
-  --build-arg USERNAME=user \
-  ./contact_graspnet
-```
-
-then:
-
-```bash
-podman run -it \
-  --name contact_graspnet_ros2 \
-  --user root \
-  --network host \
-  --ipc host \
-  --privileged \
-  --env ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" \
-  --env ROS_LOCALHOST_ONLY=0 \
-  --group-add dialout \
-  --cap-add SYS_NICE \
-  --cap-add SYS_PTRACE \
-  --ulimit rtprio=99:99 \
-  --ulimit memlock=102400:102400 \
-  -v "$(pwd)/contact_graspnet:/cgn_ros2_ws" \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-  -v "$HOME/.docker.xauth:/tmp/.docker.xauth:ro" \
-  -v "$(pwd)/limits.conf:/etc/security/limits.conf" \
-  contact_graspnet_ros2 \
-  /bin/bash
-```
-
-For the GPU contact_graspnet container:
-
-```bash
-podman build \
-  -t contact_graspnet \
-  -f ./contact_graspnet/contact_graspnet/Dockerfile \
-  --build-arg USER_UID="${USER_UID}" \
-  --build-arg USER_GID="${USER_GID}" \
-  --build-arg USERNAME=contact_graspnet \
-  ./contact_graspnet/contact_graspnet
-```
-
-then:
-
-```bash
-podman run -it \
-  --name contact_graspnet \
-  --network host \
-  --ipc host \
-  --shm-size 32g \
-  --env ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-0}" \
-  --env ROS_LOCALHOST_ONLY=0 \
-  --env NVIDIA_VISIBLE_DEVICES=all \
-  --env NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics \
-  --device nvidia.com/gpu=all \
-  -v "$(pwd)/contact_graspnet/contact_graspnet:/cgn_ws" \
-  contact_graspnet \
-  bash -lc 'conda run -n contact-graspnet bash compile_pointnet_tfops.sh && exec bash -l'
-```
+2. Get the CGN containers running on the BFG system
