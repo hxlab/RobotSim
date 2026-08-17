@@ -176,13 +176,13 @@ services:
       - SYS_NICE
       - SYS_PTRACE
 
-    ulimits:
-      rtprio:
-        soft: 99
-        hard: 99
-      memlock:
-        soft: 102400
-        hard: 102400
+    # ulimits:
+    #   rtprio:
+    #     soft: 99
+    #     hard: 99
+    #   memlock:
+    #     soft: 102400
+    #     hard: 102400
 
   contact_graspnet:
     build:
