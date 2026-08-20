@@ -13,9 +13,9 @@ def generate_launch_description():
         is_gazebo_argument,
         
         Node(
-            package='grasp_generation',
-            executable='grasp_generation',
-            name='grasp_generation',
+            package='shared_control',
+            executable='shared_control',
+            name='shared_control',
             output='screen'
         )
     ])

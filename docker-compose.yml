@@ -154,10 +154,6 @@ services:
     tty: true
     stdin_open: true
 
-    environment:
-      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
-      ROS_LOCALHOST_ONLY: "0"
-
     group_add:
       - dialout
 
@@ -176,37 +172,7 @@ services:
       - SYS_NICE
       - SYS_PTRACE
 
-    # ulimits:
-    #   rtprio:
-    #     soft: 99
-    #     hard: 99
-    #   memlock:
-    #     soft: 102400
-    #     hard: 102400
-
-  contact_graspnet:
-    build:
-      context: ./contact_graspnet/contact_graspnet
-      dockerfile: Dockerfile
-      args:
-        USER_UID: ${USER_UID}
-        USER_GID: ${USER_GID}
-        USERNAME: contact_graspnet
-
-    container_name: contact_graspnet
-
-    network_mode: host
-    ipc: host
-
     shm_size: 32gb
-
-    command: >
-      bash -lc "
-        conda run -n contact-graspnet bash compile_pointnet_tfops.sh &&
-        exec bash -l
-      "
-    tty: true
-    stdin_open: true
 
     environment:
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
@@ -214,9 +180,6 @@ services:
 
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
-
-    volumes:
-      - ./contact_graspnet/contact_graspnet:/cgn_ws
 
     deploy:
       resources:

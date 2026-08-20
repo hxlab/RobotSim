@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'grasp_generation'
+package_name = 'shared_control'
 
 setup(
     name=package_name,
@@ -19,7 +19,7 @@ setup(
     install_requires=['setuptools'],
     entry_points={
         'console_scripts': [
-            "grasp_generation=grasp_generation.grasp_generation:main"
+            "shared_control=shared_control.shared_control:main"
         ],
     },
 )

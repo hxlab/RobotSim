@@ -12,12 +12,33 @@ from cv_bridge import CvBridge
 
 import threading
 
-# we want to read from the camera topics (rgb and depth), store the latest image, perform unseen object segmentation using uois, and then generate grasps using the contact graspnet model
-# we will use the rclpy library to subscripe to topics, uois for segmentation, and contact graspnet for grasp generation
+class SharedControlNode(Node):
+    """
+    Shared Control Node
 
-class GraspGenNode(Node):
+    Description:
+    - subscribes to RGB and depth data topics from the Intel D435
+    - generates segmentation map using UOIS and publishes it
+    
+    - stores and updates (intention estimation) confidence for each object based on: 
+        - the user's trajectory (we can get this from haptic/pose)
+        - if confidence(i) > 0.5, the change in error, de, between haptic/pose and shared_control/pose
+
+    - if confidence(i) > 0.5, generates a motion path using MoveIt between the current robot pose and the highest scored grasp for object(i)
+    - a vector field is generated to calculate the next pose based on the current pose
+    - e_t = next_pos - current_pos, de = e_t - e_t-1
+    - F = k*e_t, this is sent to the haptic device
+
+    - we also plot everything in a GUI, to show a 3D plot of: 
+        - current object segmentation, 
+        - current grasp poses (only the ones with highest scores), 
+        - current motion path, 
+        - current vector field, 
+    - and a 2D plot to show confidence of each object
+    """
+
     def __init__(self):
-        Node.__init__(self, 'grasp_generation')
+        Node.__init__(self, 'shared_control')
 
         if self.is_gazebo == 'true':
             rgb_topic = '/depth_camera/image'
