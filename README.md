@@ -131,4 +131,5 @@ ros2 launch gui gui.launch.py
 
 ## To do
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
-2. Get the CGN containers running on the BFG system
+2. Re-write the CGN container to be a single ROS2 node which: (a) receives depth and segmentation data, (b) runs the CGN inference, (c) returns the grasps and scores
+3. Get the CGN container running on the BFG system
