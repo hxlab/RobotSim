@@ -14,16 +14,6 @@ The workspace also includes:
 - Grasp pose generation using UOIS unseen object segmentation and NVIDIA Contact-GraspNet.
 - A GUI to view the RGB camera data, depth map, object segmentation, grasp candidates, and modify certain parameters at runtime.
 
-## Dependencies
-
-| Dependency | Version |
-|---|---|
-| ROS 2 | Humble |
-| Ubuntu | 22.04 |
-| franka_ros2 | https://github.com/frankaemika/franka_ros2 |
-| franka_gazebo | Included with franka_ros2 |
-| Eigen3 | System package (`libeigen3-dev`) |
-
 ## Opening and Building the Workspace
 
 1. Install Docker Engine (https://docs.docker.com/engine/install/ubuntu/)
@@ -34,6 +24,7 @@ cd RobotSim
 git submodule update --init --recursive
 ```
 3. Install the NVIDIA Container Toolkit (https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+- NOTE: If using the BFG, this is already installed and configured.
 
 ### 1. Set up the Docker container(s)
 
@@ -45,18 +36,23 @@ The Docker containers are structured as follows:
           ┌─────────────────────┼─────────────────────┐
           │                     │                     │
           ▼                     ▼                     ▼
-┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
-│       USER       │   │      ROBOT       │   │ CONTACT_GRASPNET │
-│                  │   │                  │   │                  │
-│  GUI             │   │   Controller     │   │                  │
-│  Haptic Device   │   │   franka_ros2    │   │ Contact-GraspNet │
-│                  │   │                  │   │ CUDA / PyTorch   │
-│  PyQt5           │   │   Gazebo (sim)   │   │                  │
-│  OpenHaptics     │   │                  │   │                  │
-└──────────────────┘   └──────────────────┘   └──────────────────┘
+┌──────────────────┐   ┌──────────────────┐   ┌───────────────────────┐
+│       USER       │   │      ROBOT       │   │ CONTACT_GRASPNET_ROS2 │
+│                  │   │                  │   │                       │
+│  gui             │   │   controller     │   │    grasp_processor    │
+│  haptic_device   │   │  shared_control  │   │                       │
+│                  │   │                  │   │                       │
+└──────────────────┘   └──────────────────┘   └───────────────────────┘
        │                         │                      │
-   /robot_ws                 /user_ws            /root/graspnet_ws
+   /robot_ws                 /user_ws              /cgn_ros2_ws
 ```
+
+#### Dependencies by Container
+| Container | Dependencies |
+| --------- | ------------ |
+| user      | ROS2 Humble, PyQT5, TouchDriver2022_04_04, OpenHaptics 3.4.0 |
+| robot     | ROS2 Humble, ros-humble-ros-gz (Gazebo), ros-humble-librealsense2 (RealSense Cameras), ros-humble-moveit (MoveIt)  |
+| contact_graspnet_ros2 | NVIDIA CUDA 12.1, CGN-PyTorch 0.4.3 | 
 
 Then
 ```bash
@@ -77,7 +73,7 @@ source install/setup.bash
 
 > **Note:** You must run `source install/setup.bash` in every new terminal, or add it to your `~/.bashrc`.
 
-You will need to run this in each container.s
+You will need to run this in each container.
 
 ---
 
@@ -85,20 +81,17 @@ You will need to run this in each container.s
 
 ### Contact-GraspNet (NVIDIA computer)
 
-NOTE: you must [download](https://drive.google.com/drive/folders/1tBHKf60K8DLM5arm-Chyf7jxkzOr5zGl) a model, make a `contact_graspnet/contact_graspnet/checkpoints` directory, and place the model (i.e., all contents of the downloaded model folder; recommended `scene_test_2048_hor_sigma_001`) in the directory.
-
-Once both CGN containers (`contact_graspnet_ros` and `contact_graspnet`) are built and running, enter the `contact_graspnet` container and run
 ```bash
-conda run -n contact-graspnet bash compile_pointnet_tfops.sh
+ros2 launch contact_graspnet_ros2 grasp_processor.launch.py
 ```
 
-If any of the tests return an error about GLIBCXX_3.4.29 you might need to run
+This will load a pre-trained Contact-GraspNet model and start the `grasp_processor` node, which subscribes to:
+- `PointCloud2`, `/camera/depth/color/points`
+- `Image`, `/camera/segmentation/mask`
 
-```bash
-conda activate contact-graspnet
-conda install -c conda-forge libstdcxx-ng
-strings $CONDA_PREFIX/lib/libstdc++.so.6 | grep GLIBCXX_3.4.29
-```
+and publishes:
+- `PoseArray`, `/predicted_grasps`
+- `Int32MultiArray`, `/predicted_grasp_object_ids`
 
 ### Controller (robot system)
 
@@ -130,6 +123,13 @@ ros2 launch gui gui.launch.py
 ```
 
 ## To do
+
+### Development
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
 2. Re-write the CGN container to be a single ROS2 node which: (a) receives depth and segmentation data, (b) runs the CGN inference, (c) returns the grasps and scores
 3. Get the CGN container running on the BFG system
+4. Test UOIS in the `robot` container
+5. Set up a hand-eye calibration node
+
+### Other
+1. Add subscribers and publishers for each node to this README
