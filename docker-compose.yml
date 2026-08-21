@@ -142,13 +142,24 @@ services:
         USER_GID: ${USER_GID}
         USERNAME: user
 
-    user: root # this is a temporary change, hopefully
+    user: root
 
     container_name: contact_graspnet_ros2
 
     network_mode: host
     ipc: host
     privileged: true
+
+    # Equivalent to:
+    # podman run --rm \
+    #   --device=nvidia.com/gpu=all \
+    #   --security-opt=label=disable \
+    #   ubuntu nvidia-smi -L
+    devices:
+      - nvidia.com/gpu=all
+
+    security_opt:
+      - label=disable
 
     command: /bin/bash
     tty: true
@@ -164,7 +175,7 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
       # Realtime limits
-      - ./limits.conf:/etc/security/limits.conf
+      # - ./limits.conf:/etc/security/limits.conf
 
     cap_add:
       - SYS_NICE
@@ -178,11 +189,3 @@ services:
 
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
