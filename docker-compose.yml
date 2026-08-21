@@ -188,4 +188,4 @@ services:
       ROS_LOCALHOST_ONLY: "0"
 
       NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
