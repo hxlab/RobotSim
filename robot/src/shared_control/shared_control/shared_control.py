@@ -104,12 +104,6 @@ class SharedControlNode(Node):
         segmentation_mask = np.zeros(rgb_image.shape[:2], dtype=np.uint8)
         return segmentation_mask
 
-    def generate_grasps(self, rgb_image, depth_image, segmentation_mask):
-        # Placeholder for grasp generation using contact graspnet
-        # Replace this with actual grasp generation code
-        top_grasp_pose = Pose()
-        return top_grasp_pose
-
 def ros_spin_worker(node):
     """Background thread runner to process incoming ROS 2 camera events."""
     rclpy.spin(node)
