@@ -159,11 +159,9 @@ services:
 
     volumes:
       - ./contact_graspnet:/cgn_ros2_ws
-      - /var/run/docker.sock:/var/run/docker.sock # this is a temporary change, hopefully
 
       # X11
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ~/.docker.xauth:/tmp/.docker.xauth:ro
 
       # Realtime limits
       - ./limits.conf:/etc/security/limits.conf
