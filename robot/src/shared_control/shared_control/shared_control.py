@@ -17,8 +17,7 @@ class SharedControlNode(Node):
     Shared Control Node
 
     Description:
-    - subscribes to RGB and depth data topics from the Intel D435
-    - generates segmentation map using UOIS and publishes it
+    - subscribes grasp generation topics /predicted_grasps and /predicted_grasp_object_ids
     
     - stores and updates (intention estimation) confidence for each object based on: 
         - the user's trajectory (we can get this from haptic/pose)
@@ -39,6 +38,10 @@ class SharedControlNode(Node):
 
     def __init__(self):
         Node.__init__(self, 'shared_control')
+
+        self.declare_parameter('is_gazebo', 'true')
+        self.is_gazebo = self.get_parameter('is_gazebo').get_parameter_value().string_value
+        self.get_logger().info(f'Received argument: {self.is_gazebo}')
 
         if self.is_gazebo == 'true':
             rgb_topic = '/depth_camera/image'

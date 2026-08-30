@@ -76,7 +76,7 @@ class GUINode(Node, QMainWindow):
         self.get_logger().info(f'Received argument: {self.is_gazebo}')
 
         if self.is_gazebo == 'true':
-            camera_topic = '/depth_camera/image'
+            camera_topic = '/depth_camera/color/image'
         else:
             camera_topic = '/camera/camera/color/image_raw'
             

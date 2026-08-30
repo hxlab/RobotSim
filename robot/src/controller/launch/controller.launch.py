@@ -143,7 +143,8 @@ def generate_launch_description():
                 '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
                 '/depth_camera/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked',
                 '/depth_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
-                '/depth_camera/image@sensor_msgs/msg/Image@ignition.msgs.Image',
+                '/depth_camera/color/image@sensor_msgs/msg/Image@ignition.msgs.Image',
+                '/depth_camera/depth/image@sensor_msgs/msg/Image@ignition.msgs.Image',
             ],
             output='screen',
             condition=IfCondition(is_gazebo)
