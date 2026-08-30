@@ -81,17 +81,29 @@ You will need to run this in each container.
 
 ### Contact-GraspNet (NVIDIA computer)
 
+1. Download the UOIS models from [here](https://drive.google.com/uc?export=download&id=1nbYuSjx7kukRPG7i-zq9G6ZBHcS2yhFs)
+2. Re-build the workspace
 ```bash
-ros2 launch contact_graspnet_ros2 grasp_processor.launch.py
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
+```
+3. Launch the workspace
+```bash
+ros2 launch grasp_processor grasp_processor.launch.py
 ```
 
 This will load a pre-trained Contact-GraspNet model and start the `grasp_processor` node, which subscribes to:
 - `PointCloud2`, `/camera/depth/color/points`
-- `Image`, `/camera/segmentation/mask`
+- `Image`, `/camera/depth/image`
+- `Image`, `/camera/color/image`
 
 and publishes:
-- `PoseArray`, `/predicted_grasps`
-- `Int32MultiArray`, `/predicted_grasp_object_ids`
+- `Grasps`, which includes:
+```
+geometry_msgs/Pose[] poses
+float32[] scores
+int32[] object_ids
+```
 
 ### Controller (robot system)
 
@@ -126,9 +138,7 @@ ros2 launch gui gui.launch.py
 
 ### Development
 1. Make the controller launch file conditionally load the custom_franka_description OR franka_ros2/franka_description depending on whether we are in simulation or using real hardware
-2. Re-write the CGN container to be a single ROS2 node which: (a) receives depth and segmentation data, (b) runs the CGN inference, (c) returns the grasps and scores
-3. Get the CGN container running on the BFG system
-4. Test UOIS in the `robot` container
+2. Test the grasp generation pipeline
 5. Set up a hand-eye calibration node
 
 ### Other
