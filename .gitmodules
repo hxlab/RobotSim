@@ -1,3 +1,7 @@
 [submodule "robot/src/franka_ros2"]
 	path = robot/src/franka_ros2
 	url = https://git.uwaterloo.ca/robohub/panda/franka_ros2.git
+[submodule "contact_graspnet"]
+	path = contact_graspnet
+	url = https://github.com/aidankirwin/contact_graspnet_ros2.git
+	branch = cgn_singleContainerTest
