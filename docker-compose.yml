@@ -1,3 +1,7 @@
+networks:
+  ros_net:
+    driver: bridge
+
 services:
 
   # ============================================================
@@ -13,9 +17,8 @@ services:
         USERNAME: user
 
     container_name: robot
-
-    network_mode: host
-    ipc: host
+    networks:
+      - ros_net
     privileged: true
 
     command: /bin/bash
@@ -39,6 +42,8 @@ services:
 
       - /dev:/dev
       - /run/udev:/run/udev
+
+      - ./fastdds_disable_shm.xml:/tmp/fastdds_disable_shm.xml:ro
 
     group_add:
       - dialout
@@ -75,8 +80,8 @@ services:
 
     container_name: user
 
-    network_mode: host
-    ipc: host
+    networks:
+      - ros_net
     privileged: true
 
     command: /bin/bash
@@ -112,6 +117,8 @@ services:
       - /dev:/dev
       - /run/udev:/run/udev
 
+      - ./fastdds_disable_shm.xml:/tmp/fastdds_disable_shm.xml:ro
+
     devices:
       - "/dev/bus/usb:/dev/bus/usb"
       - "/dev/serial:/dev/serial"
@@ -146,8 +153,8 @@ services:
 
     container_name: contact_graspnet_ros2
 
-    network_mode: host
-    ipc: host
+    networks:
+      - ros_net
     privileged: true
 
     # Equivalent to:
@@ -176,6 +183,7 @@ services:
 
       # Realtime limits
       # - ./limits.conf:/etc/security/limits.conf
+      - ./fastdds_disable_shm.xml:/tmp/fastdds_disable_shm.xml:ro
 
     cap_add:
       - SYS_NICE
@@ -189,3 +197,7 @@ services:
 
       NVIDIA_VISIBLE_DEVICES: all
       NVIDIA_DRIVER_CAPABILITIES: compute,utility
+
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: "1"
+      XAUTHORITY: /tmp/.docker.xauth

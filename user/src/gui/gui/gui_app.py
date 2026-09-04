@@ -25,9 +25,7 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 import threading
 
-# we want to read from the camera topic /camera/camera/color/image_raw and display the image in a PyQt5 window
-# we will use the rclpy library to subscribe to the topic and the PyQt5 library to create the GUI
-
+# reads from the camera topic and displays the image in a PyQt5 window
 class GUINode(Node, QMainWindow):
     image_signal = pyqtSignal(QImage)
 
@@ -76,7 +74,7 @@ class GUINode(Node, QMainWindow):
         self.get_logger().info(f'Received argument: {self.is_gazebo}')
 
         if self.is_gazebo == 'true':
-            camera_topic = '/depth_camera/color/image'
+            camera_topic = '/depth_camera/image'
         else:
             camera_topic = '/camera/camera/color/image_raw'
             

@@ -136,16 +136,11 @@ def generate_launch_description():
         condition=IfCondition(is_gazebo)
     )
 
-    clock_node = Node(
+    bridge_config_file = os.path.join(get_package_share_directory('controller'), 'worlds', 'bridge.yaml')
+    bridge_node = Node(
             package='ros_gz_bridge',
             executable='parameter_bridge',
-            arguments=[
-                '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-                '/depth_camera/points@sensor_msgs/msg/PointCloud2@ignition.msgs.PointCloudPacked',
-                '/depth_camera/camera_info@sensor_msgs/msg/CameraInfo@ignition.msgs.CameraInfo',
-                '/depth_camera/color/image@sensor_msgs/msg/Image@ignition.msgs.Image',
-                '/depth_camera/depth/image@sensor_msgs/msg/Image@ignition.msgs.Image',
-            ],
+            parameters=[{'config_file': bridge_config_file}],
             output='screen',
             condition=IfCondition(is_gazebo)
         )
@@ -192,7 +187,7 @@ def generate_launch_description():
         # spawn robot after Gazebo has loaded
         spawn_node,  # needed for OnProcessExit event handler below
 
-        clock_node,
+        bridge_node,
 
         # load controllers after spawn completes
         RegisterEventHandler(
