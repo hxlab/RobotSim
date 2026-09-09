@@ -85,12 +85,12 @@ class SharedControlNode(Node):
     def process_data_callback(self, rgb_msg, depth_msg):
         try:
             # convert the imgmsg to opencv format
-            cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            cv_img = self.bridge.imgmsg_to_cv2(rgb_msg, desired_encoding='bgr8')
             cv_img_rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
             self.latest_rgb_image = cv_img_rgb
 
             # convert the PointCloud2 message to a numpy array
-            points = np.frombuffer(msg.data, dtype=np.float32)
+            points = np.frombuffer(depth_msg.data, dtype=np.float32)
             points = points.reshape(-1, 4)
             self.latest_depth_image = points
 
@@ -101,19 +101,13 @@ class SharedControlNode(Node):
         except Exception as e:
             self.get_logger().error(f"Failed to convert image: {e}")
 
-    def perform_segmentation(self, rgb_image):
-        # Placeholder for unseen object segmentation using uois
-        # Replace this with actual segmentation code
-        segmentation_mask = np.zeros(rgb_image.shape[:2], dtype=np.uint8)
-        return segmentation_mask
-
 def ros_spin_worker(node):
     """Background thread runner to process incoming ROS 2 camera events."""
     rclpy.spin(node)
 
 def main(args=None):
     rclpy.init(args=args)
-    node = GraspGenNode()
+    node = SharedControlNode()
     
     # Fire up a background thread to look for ROS topics without blocking PyQt
     ros_thread = threading.Thread(target=ros_spin_worker, args=(node,), daemon=True)
