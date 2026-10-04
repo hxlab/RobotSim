@@ -19,7 +19,8 @@ setup(
     install_requires=['setuptools'],
     entry_points={
         'console_scripts': [
-            "gui_app=gui.gui_app:main"
+            "gui_app=gui.gui_app:main",
+            "fake_feeds=gui.fake_feeds:main"
         ],
     },
 )

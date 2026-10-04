@@ -1,0 +1,63 @@
+diff --git a/src/grasp_processor/grasp_processor/grasp_processor.py b/src/grasp_processor/grasp_processor/grasp_processor.py
+index 6e27a76..f00ae43 100644
+--- a/src/grasp_processor/grasp_processor/grasp_processor.py
++++ b/src/grasp_processor/grasp_processor/grasp_processor.py
+@@ -64,6 +64,7 @@ class GraspProcessor(Node):
+         self.get_logger().info('Grasp Processor active.')
+ 
+         self.seg_pub = self.create_publisher(Image, '/segmentation', 10) # we publish the segmentation map for viz
++        self.overlay_pub = self.create_publisher(Image, '/grasp_overlay', 10) # grasp viz for the GUI
+ 
+         #### Camera data subscribers
+         self.camera_info_sub = self.create_subscription(CameraInfo, '/depth_camera/camera_info', self.camera_info_callback, 10)
+@@ -344,14 +345,15 @@ class GraspProcessor(Node):
+                 f"Object IDs: {np.unique(object_ids).tolist()}"
+             )
+ 
++            vis = self._save_grasp_visualization(
++                rgb=rgb_data,
++                grasps_matrices=grasps_matrices,
++                scores=scores,
++                object_ids=object_ids,
++                output_path=f"grasps_{self.plt_ctr}.png" if self.save_plots else None
++            )
++            self.overlay_pub.publish(self.bridge.cv2_to_imgmsg(vis, encoding='rgb8'))
+             if self.save_plots:
+-                self._save_grasp_visualization(
+-                    rgb=rgb_data,
+-                    grasps_matrices=grasps_matrices,
+-                    scores=scores,
+-                    object_ids=object_ids,
+-                    output_path=f"grasps_{self.plt_ctr}.png"
+-                )
+                 self.plt_ctr += 1
+ 
+         except Exception as e:
+@@ -778,16 +780,19 @@ class GraspProcessor(Node):
+                 cv2.LINE_AA,
+             )
+ 
+-        # save png
+-        success = cv2.imwrite(output_path, vis)
++        # save png only when a path was requested; always hand vis back for publishing
++        if output_path is not None:
++            success = cv2.imwrite(output_path, vis)
+ 
+-        if not success:
+-            raise RuntimeError(f"Failed to save grasp visualization to: {output_path}")
++            if not success:
++                raise RuntimeError(f"Failed to save grasp visualization to: {output_path}")
+ 
+-        self.get_logger().info(
+-            f"Saved grasp visualization with "
+-            f"{len(grasps_matrices)} grasps to {output_path}"
+-        )
++            self.get_logger().info(
++                f"Saved grasp visualization with "
++                f"{len(grasps_matrices)} grasps to {output_path}"
++            )
++
++        return vis
+ 
+ 
+ def main(args=None):

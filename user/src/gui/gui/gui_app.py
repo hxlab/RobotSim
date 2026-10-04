@@ -3,6 +3,7 @@ import rclpy
 import sys
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from std_msgs.msg import Empty
 
 import cv2
 from cv_bridge import CvBridge
@@ -68,6 +69,9 @@ class GUINode(Node, QMainWindow):
         self.grasp_slider.valueChanged.connect(self.update_grasp_slider)
         self.traj_slider.valueChanged.connect(self.update_traj_slider)
         self.adaptive_checkbox.toggled.connect(self.adaptive_autonomy_changed)
+        self.reset_pose_button.clicked.connect(self.publish_reset_pose)
+        self.segmentation_checkbox.toggled.connect(self.view_toggled)
+        self.grasp_checkbox.toggled.connect(self.view_toggled)
 
         self.declare_parameter('is_gazebo', 'true')
         self.is_gazebo = self.get_parameter('is_gazebo').get_parameter_value().string_value
@@ -78,17 +82,34 @@ class GUINode(Node, QMainWindow):
         else:
             camera_topic = '/camera/camera/color/image_raw'
             
-        # subscribe to camera topic
-        self.subscription = self.create_subscription(
-            Image,
-            camera_topic,
-            self.image_callback,
-            10
-        )   
+        # latest frame per view; written by the ROS thread, re-emitted on toggle
+        self.latest_frames = {'camera': None, 'segmentation': None, 'grasp': None}
 
-    def image_callback(self, msg):
+        self.subscription = self.create_subscription(
+            Image, camera_topic,
+            lambda msg: self.image_callback(msg, 'camera'), 10)
+        self.seg_subscription = self.create_subscription(
+            Image, '/segmentation',
+            lambda msg: self.image_callback(msg, 'segmentation'), 10)
+        self.grasp_subscription = self.create_subscription(
+            Image, '/grasp_overlay',
+            lambda msg: self.image_callback(msg, 'grasp'), 10)
+
+        self.reset_pub = self.create_publisher(Empty, '/reset_pose', 10)
+
+    def image_callback(self, msg, source):
         try:
-            cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            if msg.encoding in ('bgr8', 'rgb8'):
+                cv_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            else:
+                # segmentation maps can arrive as single-channel label images
+                raw = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+                if raw.ndim == 2:
+                    lo, hi = float(raw.min()), float(raw.max())
+                    norm = ((raw - lo) * (255.0 / (hi - lo))) if hi > lo else raw * 0
+                    cv_img = cv2.applyColorMap(norm.astype('uint8'), cv2.COLORMAP_JET)
+                else:
+                    cv_img = raw[:, :, :3]
             cv_img_rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
             
             height, width, channels = cv_img_rgb.shape
@@ -103,11 +124,13 @@ class GUINode(Node, QMainWindow):
                 QImage.Format.Format_RGB888
             ).copy()
 
-            # Safely emit the image to the main GUI thread
-            self.image_signal.emit(q_image)
-            
+            self.latest_frames[source] = q_image
+            # only push to the GUI thread when this source is the active view
+            if source == self.active_view():
+                self.image_signal.emit(q_image)
+
         except Exception as e:
-            self.get_logger().error(f"Failed to convert image: {e}")
+            self.get_logger().error(f"Failed to convert {source} image: {e}")
 
     @pyqtSlot(QImage)
     def update_gui_image(self, q_image):
@@ -126,6 +149,30 @@ class GUINode(Node, QMainWindow):
     def adaptive_autonomy_changed(self, checked):
         self.grasp_slider.setEnabled(not checked)
         self.traj_slider.setEnabled(not checked)
+
+    def active_view(self):
+        if self.segmentation_checkbox.isChecked():
+            return 'segmentation'
+        if self.grasp_checkbox.isChecked():
+            return 'grasp'
+        return 'camera'
+
+    def view_toggled(self, checked):
+        # keep the two view checkboxes mutually exclusive
+        if checked:
+            other = self.grasp_checkbox if self.sender() is self.segmentation_checkbox else self.segmentation_checkbox
+            other.blockSignals(True)
+            other.setChecked(False)
+            other.blockSignals(False)
+        frame = self.latest_frames.get(self.active_view())
+        if frame is not None:
+            self.image_signal.emit(frame)
+        else:
+            self.image_label.setText(f"waiting for {self.active_view()} frames...")
+
+    def publish_reset_pose(self):
+        self.reset_pub.publish(Empty())
+        self.get_logger().info('Reset pose command sent.')
 
     def configure_layout(self):
         """Configure the layout of the GUI"""
