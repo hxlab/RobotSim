@@ -35,16 +35,19 @@ class FakeFeeds(Node):
         self.get_logger().info('reset_pose received')
 
     def frame(self, kind):
-        img = np.zeros((480, 640, 3), dtype=np.uint8)
         x = (self.tick * 8) % 640
+        if kind == 'segmentation':
+            # mono8 label map, same shape the real grasp_processor publishes
+            img = np.zeros((480, 640), dtype=np.uint8)
+            img[:240, 320:] = 1                 # label quadrants
+            img[240:, :320] = 2
+            img[240:, 320:] = 3
+            img[100:180, x:x + 40] = 4          # moving "object"
+            return img
+        img = np.zeros((480, 640, 3), dtype=np.uint8)
         if kind == 'camera':
             img[:, :, :] = 40
-            img[:, x:x + 40, 1] = 255          # moving green bar
-        elif kind == 'segmentation':
-            img[:240, :320] = (255, 0, 0)       # colored quadrants
-            img[:240, 320:] = (0, 255, 0)
-            img[240:, :320] = (0, 0, 255)
-            img[240:, x:x + 40] = (255, 255, 0)
+            img[:, x:x + 40, 1] = 255           # moving green bar
         else:
             img[:, :, 2] = 90
             img[200:280, x:x + 40, :] = 255     # moving white block on red
@@ -55,7 +58,8 @@ class FakeFeeds(Node):
         for kind, pub in (('camera', self.camera_pub),
                           ('segmentation', self.seg_pub),
                           ('grasp', self.grasp_pub)):
-            msg = self.bridge.cv2_to_imgmsg(self.frame(kind), encoding='bgr8')
+            encoding = 'mono8' if kind == 'segmentation' else 'bgr8'
+            msg = self.bridge.cv2_to_imgmsg(self.frame(kind), encoding=encoding)
             msg.header.stamp = now
             pub.publish(msg)
         self.tick += 1

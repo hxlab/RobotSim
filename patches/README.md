@@ -1,10 +1,13 @@
 # Patches for the contact_graspnet submodule
 
-`grasp-overlay-topic.diff` makes `grasp_processor` publish its grasp
-visualization on `/grasp_overlay` (sensor_msgs/Image, rgb8) every inference,
-instead of only writing `grasps_<n>.png` when `save_plots` is set. The PNG
-behaviour is unchanged. The GUI's "Show Grasp Candidate" toggle subscribes to
-this topic.
+`grasp-overlay-topic.diff` makes `grasp_processor` publish two images the GUI
+subscribes to:
+
+- `/grasp_overlay` (sensor_msgs/Image, bgr8): the grasp visualization, every
+  inference, instead of only writing `grasps_<n>.png` when `save_plots` is
+  set. The PNG behaviour is unchanged.
+- `/segmentation` (sensor_msgs/Image, mono8): the UOIS label map. The
+  publisher already existed upstream but nothing ever called publish on it.
 
 It lives here as a patch because the submodule repo
 (aidankirwin/contact_graspnet_ros2) is not writable by this branch's author.

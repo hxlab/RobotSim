@@ -1,5 +1,5 @@
 diff --git a/src/grasp_processor/grasp_processor/grasp_processor.py b/src/grasp_processor/grasp_processor/grasp_processor.py
-index 6e27a76..f00ae43 100644
+index 6e27a76..1bfd07d 100644
 --- a/src/grasp_processor/grasp_processor/grasp_processor.py
 +++ b/src/grasp_processor/grasp_processor/grasp_processor.py
 @@ -64,6 +64,7 @@ class GraspProcessor(Node):
@@ -10,7 +10,18 @@ index 6e27a76..f00ae43 100644
  
          #### Camera data subscribers
          self.camera_info_sub = self.create_subscription(CameraInfo, '/depth_camera/camera_info', self.camera_info_callback, 10)
-@@ -344,14 +345,15 @@ class GraspProcessor(Node):
+@@ -284,6 +285,10 @@ class GraspProcessor(Node):
+             # (H, W, 1) -> (H, W)
+             if mask.ndim == 3 and mask.shape[-1] == 1:
+                 mask = mask[..., 0]
++
++            # publish the label map for the GUI's segmentation view
++            self.seg_pub.publish(self.bridge.cv2_to_imgmsg(mask.astype(np.uint8), encoding='mono8'))
++
+             # (H, W) -> (H*W,)
+             mask = mask.reshape(-1)
+ 
+@@ -344,14 +349,16 @@ class GraspProcessor(Node):
                  f"Object IDs: {np.unique(object_ids).tolist()}"
              )
  
@@ -21,7 +32,8 @@ index 6e27a76..f00ae43 100644
 +                object_ids=object_ids,
 +                output_path=f"grasps_{self.plt_ctr}.png" if self.save_plots else None
 +            )
-+            self.overlay_pub.publish(self.bridge.cv2_to_imgmsg(vis, encoding='rgb8'))
++            # vis is BGR (converted in _save_grasp_visualization for OpenCV drawing)
++            self.overlay_pub.publish(self.bridge.cv2_to_imgmsg(vis, encoding='bgr8'))
              if self.save_plots:
 -                self._save_grasp_visualization(
 -                    rgb=rgb_data,
@@ -33,7 +45,7 @@ index 6e27a76..f00ae43 100644
                  self.plt_ctr += 1
  
          except Exception as e:
-@@ -778,16 +780,19 @@ class GraspProcessor(Node):
+@@ -778,16 +785,19 @@ class GraspProcessor(Node):
                  cv2.LINE_AA,
              )
  
